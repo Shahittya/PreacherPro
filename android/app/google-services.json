@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "620524649430",
+    "project_id": "preachepro",
+    "storage_bucket": "preachepro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:620524649430:android:fd3bceb914859d3229c277",
+        "android_client_info": {
+          "package_name": "com.example.preacherpro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAwbeWaKRll8Sf2nhvuofWW3FRWkGgGYuA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
