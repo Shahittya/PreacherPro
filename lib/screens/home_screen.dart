@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'loginPage.dart';
+import 'Login/loginPage.dart';
 import 'Registeration/userRegisterPage.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -119,6 +119,7 @@ class HomeScreen extends StatelessWidget {
                       },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
+                        backgroundColor: Colors.transparent,
                         side: const BorderSide(color: Colors.white, width: 2),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -129,6 +130,7 @@ class HomeScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
                     ),

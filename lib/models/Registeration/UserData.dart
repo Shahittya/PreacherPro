@@ -109,7 +109,7 @@ class UserData {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // Document 2: preachers/{uid} - Combined preacher info and registration status
+      // Document 2: preachers/{uid} - Preacher info and registration details
       DocumentReference preacherDoc =
           _firestore.collection('preachers').doc(uid);
       batch.set(preacherDoc, {
@@ -119,7 +119,6 @@ class UserData {
         'address': address,
         'district': district ?? '',
         'qualification': qualification ?? '',
-        'status': 'PENDING',
         'submittedAt': FieldValue.serverTimestamp(),
         'reviewedBy': null,
         'reviewedAt': null,
