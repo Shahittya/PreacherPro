@@ -70,10 +70,6 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> submitRegistration() async {
-    await _handleSubmit();
-  }
-
-  Future<void> _handleSubmit() async {
     // Check if profile image is uploaded
     if (_profileImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
