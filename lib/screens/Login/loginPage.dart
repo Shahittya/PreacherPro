@@ -32,6 +32,41 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  // Logout function that triggers controller logout
+  Future<void> onLogoutUser(BuildContext context) async {
+    try {
+      Map<String, dynamic> result = await _controller.logout();
+      
+      if (context.mounted) {
+        if (result['success']) {
+          // Navigate back to home screen after successful logout
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+            (route) => false,
+          );
+        } else {
+          // Show error message if logout fails
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message']),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> onLoginUser() async {
     if (!_formKey.currentState!.validate()) return;
 

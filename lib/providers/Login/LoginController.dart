@@ -1,7 +1,26 @@
-import '../../models/Login/User.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../models/Login/User.dart' as UserModel;
 
 // CONTROLLER - Validates credentials and orchestrates login flow
 class LoginController {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  // Logout user from Firebase
+  Future<Map<String, dynamic>> logout() async {
+    try {
+      await _auth.signOut();
+      return {
+        'success': true,
+        'message': 'Logged out successfully',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Logout failed: ${e.toString()}',
+      };
+    }
+  }
+
   // Validate login credentials
   Map<String, dynamic> validateCredentials(String email, String password, String role) {
     // Validate Email
@@ -38,7 +57,7 @@ class LoginController {
     }
 
     // Step 2: Create User model and attempt login
-    User user = User(
+    UserModel.User user = UserModel.User(
       email: email,
       password: password,
       role: role,
