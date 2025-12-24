@@ -10,7 +10,7 @@ class OfficerDashboard extends StatelessWidget {
   Future<void> _logout(BuildContext context) async {
     final controller = LoginController();
     Map<String, dynamic> result = await controller.logout();
-    
+
     if (context.mounted) {
       if (result['success']) {
         Navigator.pushAndRemoveUntil(
@@ -47,26 +47,16 @@ class OfficerDashboard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.admin_panel_settings,
-              size: 80,
-              color: Colors.green,
-            ),
+            Icon(Icons.admin_panel_settings, size: 80, color: Colors.green),
             const SizedBox(height: 20),
             const Text(
               'Welcome to Officer Dashboard',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             Text(
               'Your content will be here',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
           ],
         ),

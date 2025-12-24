@@ -23,7 +23,10 @@ class OfficerRegisterController {
       return {'valid': false, 'message': 'Full name is required'};
     }
     if (fullName.length < 3) {
-      return {'valid': false, 'message': 'Full name must be at least 3 characters'};
+      return {
+        'valid': false,
+        'message': 'Full name must be at least 3 characters',
+      };
     }
 
     // Validate Email
@@ -39,10 +42,7 @@ class OfficerRegisterController {
       return {'valid': false, 'message': 'Contact number is required'};
     }
     if (!_isValidContact(contact)) {
-      return {
-        'valid': false,
-        'message': 'Contact number must be 10-15 digits'
-      };
+      return {'valid': false, 'message': 'Contact number must be 10-15 digits'};
     }
 
     // Validate Department
@@ -62,7 +62,7 @@ class OfficerRegisterController {
     if (password.length < 6) {
       return {
         'valid': false,
-        'message': 'Password must be at least 6 characters'
+        'message': 'Password must be at least 6 characters',
       };
     }
 

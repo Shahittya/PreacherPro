@@ -10,7 +10,7 @@ class PreacherDashboard extends StatelessWidget {
   Future<void> _logout(BuildContext context) async {
     final controller = LoginController();
     Map<String, dynamic> result = await controller.logout();
-    
+
     if (context.mounted) {
       if (result['success']) {
         Navigator.pushAndRemoveUntil(
@@ -47,26 +47,16 @@ class PreacherDashboard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.mosque,
-              size: 80,
-              color: Colors.blue,
-            ),
+            Icon(Icons.mosque, size: 80, color: Colors.blue),
             const SizedBox(height: 20),
             const Text(
               'Welcome to Preacher Dashboard',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             Text(
               'Your content will be here',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
           ],
         ),

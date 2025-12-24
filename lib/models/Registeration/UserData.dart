@@ -64,11 +64,8 @@ class UserData {
   Future<Map<String, dynamic>> saveToDatabase() async {
     try {
       // Step 1: Create user with Firebase Authentication
-      UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      UserCredential userCredential = await _auth
+          .createUserWithEmailAndPassword(email: email, password: password);
 
       String uid = userCredential.user!.uid;
 
@@ -81,10 +78,7 @@ class UserData {
         'uid': uid,
       };
     } on FirebaseAuthException catch (e) {
-      return {
-        'success': false,
-        'message': _getAuthErrorMessage(e.code),
-      };
+      return {'success': false, 'message': _getAuthErrorMessage(e.code)};
     } catch (e) {
       return {
         'success': false,
@@ -110,8 +104,9 @@ class UserData {
       });
 
       // Document 2: preachers/{uid} - Preacher info and registration details
-      DocumentReference preacherDoc =
-          _firestore.collection('preachers').doc(uid);
+      DocumentReference preacherDoc = _firestore
+          .collection('preachers')
+          .doc(uid);
       batch.set(preacherDoc, {
         'fullName': fullName,
         'icNumber': icNumber,

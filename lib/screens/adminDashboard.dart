@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'home_screen.dart';
 import '../providers/Login/LoginController.dart';
-import 'Login/loginpage.dart';
 import 'Registeration/officerRegisterPage.dart';
+import 'Registeration/registrationRequestPage.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -18,7 +17,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Future<void> _logout(BuildContext context) async {
     final controller = LoginController();
     Map<String, dynamic> result = await controller.logout();
-    
+
     if (context.mounted) {
       if (result['success']) {
         Navigator.pushAndRemoveUntil(
@@ -51,14 +50,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
         // Not clickable yet
         break;
       case 2: // Requests
-        // Not clickable yet
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (context) => const RegistrationRequestPage()),
+        );
         break;
       case 3: // Add MUIP
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => const OfficerRegisterPage(),
-          ),
+          MaterialPageRoute(builder: (context) => const OfficerRegisterPage()),
         );
         break;
       case 4: // Profile
@@ -85,26 +86,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.dashboard,
-              size: 80,
-              color: Colors.deepPurple,
-            ),
+            Icon(Icons.dashboard, size: 80, color: Colors.deepPurple),
             const SizedBox(height: 20),
             const Text(
               'Welcome to Admin Dashboard',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             Text(
               'Your content will be here',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
           ],
         ),
@@ -116,14 +107,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
         unselectedItemColor: Colors.grey,
         onTap: _onItemTapped,
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: 'Preachers',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Preachers'),
           BottomNavigationBarItem(
             icon: Icon(Icons.notifications),
             label: 'Requests',
@@ -132,10 +117,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             icon: Icon(Icons.person_add),
             label: 'Add MUIP',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
     );

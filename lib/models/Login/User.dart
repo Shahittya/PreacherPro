@@ -10,27 +10,22 @@ class User {
   final auth.FirebaseAuth _auth = auth.FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  User({
-    required this.email,
-    required this.password,
-    required this.role,
-  });
+  User({required this.email, required this.password, required this.role});
 
   // Login user with Firebase Authentication and verify role & status
   Future<Map<String, dynamic>> login() async {
     try {
       // Step 1: Authenticate with Firebase Auth
-      auth.UserCredential userCredential =
-          await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      auth.UserCredential userCredential = await _auth
+          .signInWithEmailAndPassword(email: email, password: password);
 
       String uid = userCredential.user!.uid;
 
       // Step 2: Verify user role and status in Firestore
-      DocumentSnapshot userDoc =
-          await _firestore.collection('users').doc(uid).get();
+      DocumentSnapshot userDoc = await _firestore
+          .collection('users')
+          .doc(uid)
+          .get();
 
       if (!userDoc.exists) {
         await _auth.signOut();
@@ -59,13 +54,15 @@ class User {
           await _auth.signOut();
           return {
             'success': false,
-            'message': 'Your account is pending approval. Please wait for admin approval.',
+            'message':
+                'Your account is pending approval. Please wait for admin approval.',
           };
         } else if (userStatus == 'REJECTED') {
           await _auth.signOut();
           return {
             'success': false,
-            'message': 'Your account has been rejected. Please contact admin for more information.',
+            'message':
+                'Your account has been rejected. Please contact admin for more information.',
           };
         } else if (userStatus != 'ACTIVE') {
           await _auth.signOut();
@@ -85,15 +82,9 @@ class User {
         'name': userData['name'] ?? 'User',
       };
     } on auth.FirebaseAuthException catch (e) {
-      return {
-        'success': false,
-        'message': _getAuthErrorMessage(e.code),
-      };
+      return {'success': false, 'message': _getAuthErrorMessage(e.code)};
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Login failed: ${e.toString()}',
-      };
+      return {'success': false, 'message': 'Login failed: ${e.toString()}'};
     }
   }
 

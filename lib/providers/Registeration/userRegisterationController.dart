@@ -9,7 +9,10 @@ class UserRegisterationController {
       return {'valid': false, 'message': 'Full name is required'};
     }
     if (userData.fullName.length < 3) {
-      return {'valid': false, 'message': 'Full name must be at least 3 characters'};
+      return {
+        'valid': false,
+        'message': 'Full name must be at least 3 characters',
+      };
     }
 
     // Validate IC Number
@@ -22,7 +25,10 @@ class UserRegisterationController {
       return {'valid': false, 'message': 'Phone number is required'};
     }
     if (userData.contact.length < 10) {
-      return {'valid': false, 'message': 'Phone number must be at least 10 digits'};
+      return {
+        'valid': false,
+        'message': 'Phone number must be at least 10 digits',
+      };
     }
 
     // Validate Address
@@ -43,7 +49,10 @@ class UserRegisterationController {
       return {'valid': false, 'message': 'Password is required'};
     }
     if (userData.password.length < 6) {
-      return {'valid': false, 'message': 'Password must be at least 6 characters'};
+      return {
+        'valid': false,
+        'message': 'Password must be at least 6 characters',
+      };
     }
 
     // All validations passed
@@ -54,7 +63,7 @@ class UserRegisterationController {
   Future<Map<String, dynamic>> userRegister(UserData userData) async {
     // Validation happens here
     Map<String, dynamic> validation = validateRegister(userData);
-    
+
     if (validation['valid'] != true) {
       return {
         'success': false,

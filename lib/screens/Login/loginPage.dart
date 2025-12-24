@@ -36,7 +36,7 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> onLogoutUser(BuildContext context) async {
     try {
       Map<String, dynamic> result = await _controller.logout();
-      
+
       if (context.mounted) {
         if (result['success']) {
           // Navigate back to home screen after successful logout
@@ -172,30 +172,21 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 8),
                   const Text(
                     'Preacher Monitoring System',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 40),
                   // User Login Title
                   const Text(
                     'User Login',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 30),
                   // Email Field
                   const Text(
                     'Email Address',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
@@ -228,10 +219,7 @@ class _LoginPageState extends State<LoginPage> {
                   // Password Field
                   const Text(
                     'Password',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
@@ -277,10 +265,7 @@ class _LoginPageState extends State<LoginPage> {
                   // Role Dropdown
                   const Text(
                     'Role',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 8),
                   Container(

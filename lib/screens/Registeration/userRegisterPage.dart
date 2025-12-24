@@ -144,7 +144,7 @@ class _RegisterPageState extends State<RegisterPage> {
       setState(() {
         _isLoading = false;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

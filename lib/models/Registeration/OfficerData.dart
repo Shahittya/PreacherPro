@@ -57,11 +57,8 @@ class OfficerData {
   Future<Map<String, dynamic>> createOfficer() async {
     try {
       // Step 1: Create officer with Firebase Authentication
-      UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      UserCredential userCredential = await _auth
+          .createUserWithEmailAndPassword(email: email, password: password);
 
       String uid = userCredential.user!.uid;
 
@@ -74,10 +71,7 @@ class OfficerData {
         'uid': uid,
       };
     } on FirebaseAuthException catch (e) {
-      return {
-        'success': false,
-        'message': _getAuthErrorMessage(e.code),
-      };
+      return {'success': false, 'message': _getAuthErrorMessage(e.code)};
     } catch (e) {
       return {
         'success': false,
@@ -103,8 +97,7 @@ class OfficerData {
       });
 
       // Document 2: officers/{uid}
-      DocumentReference officerDoc =
-          _firestore.collection('officers').doc(uid);
+      DocumentReference officerDoc = _firestore.collection('officers').doc(uid);
       batch.set(officerDoc, {
         'employeeId': employeeId,
         'fullName': fullName,

@@ -9,20 +9,18 @@ class LoginController {
   Future<Map<String, dynamic>> logout() async {
     try {
       await _auth.signOut();
-      return {
-        'success': true,
-        'message': 'Logged out successfully',
-      };
+      return {'success': true, 'message': 'Logged out successfully'};
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Logout failed: ${e.toString()}',
-      };
+      return {'success': false, 'message': 'Logout failed: ${e.toString()}'};
     }
   }
 
   // Validate login credentials
-  Map<String, dynamic> validateCredentials(String email, String password, String role) {
+  Map<String, dynamic> validateCredentials(
+    String email,
+    String password,
+    String role,
+  ) {
     // Validate Email
     if (email.isEmpty) {
       return {'valid': false, 'message': 'Email is required'};
@@ -36,7 +34,10 @@ class LoginController {
       return {'valid': false, 'message': 'Password is required'};
     }
     if (password.length < 6) {
-      return {'valid': false, 'message': 'Password must be at least 6 characters'};
+      return {
+        'valid': false,
+        'message': 'Password must be at least 6 characters',
+      };
     }
 
     // Validate Role
@@ -48,10 +49,18 @@ class LoginController {
   }
 
   // Handle login process
-  Future<Map<String, dynamic>> login(String email, String password, String role) async {
+  Future<Map<String, dynamic>> login(
+    String email,
+    String password,
+    String role,
+  ) async {
     // Step 1: Validate credentials
-    Map<String, dynamic> validation = validateCredentials(email, password, role);
-    
+    Map<String, dynamic> validation = validateCredentials(
+      email,
+      password,
+      role,
+    );
+
     if (!validation['valid']) {
       return validation;
     }
