@@ -45,7 +45,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
             elevation: 0,
           ),
           body: _buildBody(profileController, themeColor),
-          bottomNavigationBar: _buildBottomNavBar(themeColor),
+
         );
       },
     );
@@ -299,61 +299,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  Widget _buildBottomNavBar(Color themeColor) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: themeColor,
-        unselectedItemColor: Colors.grey[600],
-        backgroundColor: Colors.white,
-        elevation: 0,
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        currentIndex: 4, // Profile is selected
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_outlined),
-            activeIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.event_outlined),
-            activeIcon: Icon(Icons.event),
-            label: 'Activities',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            activeIcon: Icon(Icons.people),
-            label: 'Preachers',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assessment_outlined),
-            activeIcon: Icon(Icons.assessment),
-            label: 'Reports',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
-        onTap: (index) {
-          if (index != 4) {
-            // Navigate back to dashboard for other tabs
-            Navigator.pop(context);
-          }
-        },
-      ),
-    );
-  }
+
+  
 }
