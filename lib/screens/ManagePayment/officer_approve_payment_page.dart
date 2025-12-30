@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../providers/ManagePayment/payment_store.dart';
+import '../../providers/Profile&Payment/payment_controller.dart';
 
 class OfficerApprovePaymentPage extends StatefulWidget {
   const OfficerApprovePaymentPage({super.key});
@@ -9,7 +9,7 @@ class OfficerApprovePaymentPage extends StatefulWidget {
 }
 
 class _OfficerApprovePaymentPageState extends State<OfficerApprovePaymentPage> {
-  final store = PaymentStore();
+  final store = PaymentController();
 
   void _approve(int index) {
     final id = store.pending.value[index]['id'];
