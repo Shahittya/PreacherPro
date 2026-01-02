@@ -83,9 +83,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _logout(context),
-          ),
+          ), //app
         ],
-      ),
+      ),//
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
