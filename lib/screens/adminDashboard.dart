@@ -4,6 +4,7 @@ import '../providers/Login/LoginController.dart';
 import 'Registeration/officerRegisterPage.dart';
 import 'Registeration/registrationRequestPage.dart';
 import 'ManageProfile/userProfilePage.dart';
+import 'ManagePreacher/PreacherManagementPage.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -11,6 +12,7 @@ class AdminDashboard extends StatefulWidget {
   @override
   State<AdminDashboard> createState() => _AdminDashboardState();
 }
+//youserf
 
 class _AdminDashboardState extends State<AdminDashboard> {
   int _selectedIndex = 0;
@@ -48,7 +50,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
         // Already on dashboard, do nothing
         break;
       case 1: // Preachers
-        // Not clickable yet
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const PreacherManagementPage()),
+        ).then((_) => setState(() => _selectedIndex = 0));
         break;
       case 2: // Requests
         Navigator.push(
