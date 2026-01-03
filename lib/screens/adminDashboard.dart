@@ -4,6 +4,7 @@ import '../providers/Login/LoginController.dart';
 import 'Registeration/officerRegisterPage.dart';
 import 'Registeration/registrationRequestPage.dart';
 import 'ManageProfile/userProfilePage.dart';
+import 'ManagePreacher/PreacherManagementPage.dart';
 import 'ManagePayment/payment_page.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -50,7 +51,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
         // Already on dashboard, do nothing
         break;
       case 1: // Preachers
-        // Not clickable yet
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const PreacherManagementPage()),
+        ).then((_) => setState(() => _selectedIndex = 0));
         break;
       case 2: // Requests
         Navigator.push(
@@ -91,9 +95,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _logout(context),
-          ),
+          ), //app
         ],
-      ),
+      ),//
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
