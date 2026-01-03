@@ -4,6 +4,7 @@ import 'home_screen.dart';
 import '../providers/Login/LoginController.dart';
 import 'Login/loginpage.dart';
 import 'ManageProfile/userProfilePage.dart';
+import 'ManagePayment/preacher_payment_page.dart';
 
 class PreacherDashboard extends StatefulWidget {
   const PreacherDashboard({super.key});
@@ -53,7 +54,13 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
         break;
       case 3: // Reports
         break;
-      case 4: // Profile
+      case 4: // Payment
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const PreacherPaymentPage()),
+        ).then((_) => setState(() => _selectedIndex = 0));
+        break;
+      case 5: // Profile
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const UserProfilePage()),
@@ -135,6 +142,11 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
               icon: Icon(Icons.assessment_outlined),
               activeIcon: Icon(Icons.assessment),
               label: 'Reports',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.payment),
+              activeIcon: Icon(Icons.payment),
+              label: 'Payment',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),

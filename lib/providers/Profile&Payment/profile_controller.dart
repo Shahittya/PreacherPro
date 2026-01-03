@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/Profile/profile_data.dart';
 
 class ProfileController extends ChangeNotifier {
+  // Firebase instances
+  static final FirebaseAuth _auth = FirebaseAuth.instance;
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   // Properties matching UML diagram
   String _fullName = '';
   String _email = '';
@@ -54,27 +60,68 @@ class ProfileController extends ChangeNotifier {
     }
   }
 
-  // Load current user profile using ProfileData model
+  // Load current user profile from Firestore
   Future<void> loadCurrentUserProfile() async {
     _isLoading = true;
     _hasError = false;
     notifyListeners();
 
     try {
-      // Call ProfileData model to get profile data (MVC pattern)
-      Map<String, dynamic> result = await ProfileData.getUserProfile();
+      final User? currentUser = _auth.currentUser;
 
-      if (result['success'] == true) {
-        _email = result['email'] ?? '';
-        _fullName = result['fullName'] ?? '';
-        _role = result['role'] ?? '';
-        _phoneNumber = result['phoneNumber'] ?? '';
-        _address = result['address'] ?? '';
-        _district = result['district'] ?? '';
-        _qualification = result['qualification'] ?? '';
-      } else {
-        throw Exception(result['message']);
+      if (currentUser == null) {
+        throw Exception('No user logged in');
       }
+
+      // Get user document from Firestore
+      final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+
+      if (!userDoc.exists) {
+        throw Exception('User profile not found');
+      }
+
+      final userData = userDoc.data()!;
+      _email = userData['email'] ?? currentUser.email ?? '';
+      _fullName = userData['name'] ?? '';
+      _role = userData['role'] ?? '';
+      String phoneNumber = '';
+      String address = '';
+      String district = '';
+      String qualification = '';
+
+      // Load additional details based on role
+      if (_role.toUpperCase() == 'PREACHER') {
+        final preacherDoc = await _firestore.collection('preachers').doc(currentUser.uid).get();
+        if (preacherDoc.exists) {
+          final preacherData = preacherDoc.data()!;
+          _fullName = preacherData['fullName'] ?? _fullName;
+          phoneNumber = preacherData['phone'] ?? '';
+          address = preacherData['address'] ?? '';
+          district = preacherData['district'] ?? '';
+          qualification = preacherData['qualification'] ?? '';
+        }
+      } else if (_role.toUpperCase() == 'OFFICER') {
+        final officerDoc = await _firestore.collection('officers').doc(currentUser.uid).get();
+        if (officerDoc.exists) {
+          final officerData = officerDoc.data()!;
+          _fullName = officerData['fullName'] ?? _fullName;
+          phoneNumber = officerData['phone'] ?? '';
+          address = officerData['address'] ?? '';
+        }
+      } else if (_role.toUpperCase() == 'ADMIN') {
+        final adminDoc = await _firestore.collection('admins').doc(currentUser.uid).get();
+        if (adminDoc.exists) {
+          final adminData = adminDoc.data()!;
+          _fullName = adminData['fullName'] ?? _fullName;
+          phoneNumber = adminData['phone'] ?? '';
+          address = adminData['address'] ?? '';
+        }
+      }
+
+      _phoneNumber = phoneNumber;
+      _address = address;
+      _district = district;
+      _qualification = qualification;
 
       _isLoading = false;
       notifyListeners();
@@ -86,7 +133,7 @@ class ProfileController extends ChangeNotifier {
     }
   }
 
-  // Update current user profile using ProfileData model
+  // Update current user profile in Firestore
   Future<Map<String, dynamic>> updateCurrentUserProfile({
     required String fullName,
     required String phoneNumber,
@@ -96,25 +143,57 @@ class ProfileController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Call ProfileData model to update profile (MVC pattern)
-      Map<String, dynamic> result = await ProfileData.updateUserProfile(
-        fullName: fullName,
-        phoneNumber: phoneNumber,
-        address: address,
-        role: _role,
-      );
+      final User? currentUser = _auth.currentUser;
 
-      if (result['success'] == true) {
-        // Update local state
-        _fullName = fullName;
-        _phoneNumber = phoneNumber;
-        _address = address;
+      if (currentUser == null) {
+        return {
+          'success': false,
+          'message': 'No user logged in',
+        };
       }
+
+      // Update user document
+      await _firestore.collection('users').doc(currentUser.uid).update({
+        'name': fullName,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Update role-specific collection
+      if (_role.toUpperCase() == 'PREACHER') {
+        await _firestore.collection('preachers').doc(currentUser.uid).update({
+          'fullName': fullName,
+          'phone': phoneNumber,
+          'address': address,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else if (_role.toUpperCase() == 'OFFICER') {
+        await _firestore.collection('officers').doc(currentUser.uid).update({
+          'fullName': fullName,
+          'phone': phoneNumber,
+          'address': address,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else if (_role.toUpperCase() == 'ADMIN') {
+        await _firestore.collection('admins').doc(currentUser.uid).set({
+          'fullName': fullName,
+          'phone': phoneNumber,
+          'address': address,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      // Update local state
+      _fullName = fullName;
+      _phoneNumber = phoneNumber;
+      _address = address;
 
       _isLoading = false;
       notifyListeners();
 
-      return result;
+      return {
+        'success': true,
+        'message': 'Profile updated successfully!',
+      };
     } catch (e) {
       _isLoading = false;
       notifyListeners();
