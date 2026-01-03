@@ -5,7 +5,7 @@ import 'Registeration/officerRegisterPage.dart';
 import 'Registeration/registrationRequestPage.dart';
 import 'ManageProfile/userProfilePage.dart';
 import 'ManagePreacher/PreacherManagementPage.dart';
-import 'ManagePayment/payment_page.dart';
+import 'ManagePayment/muip_admin_payment_page.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -72,7 +72,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       case 4: // Payment
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const PaymentPage()),
+          MaterialPageRoute(builder: (context) => const MuipAdminPaymentPage()),
         ).then((_) => setState(() => _selectedIndex = 0));
         break;
       case 5: // Profile

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../providers/Profile&Payment/payment_controller.dart';
 
-class PreacherPaymentPage extends StatefulWidget {
-  const PreacherPaymentPage({super.key});
+class MuipAdminPaymentPage extends StatefulWidget {
+  const MuipAdminPaymentPage({super.key});
 
   @override
-  State<PreacherPaymentPage> createState() => _PreacherPaymentPageState();
+  State<MuipAdminPaymentPage> createState() => _MuipAdminPaymentPageState();
 }
 
-class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTickerProviderStateMixin {
+class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with SingleTickerProviderStateMixin {
   final store = PaymentController();
   late TabController _tabController;
 
@@ -53,16 +53,8 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
   }
 
   Widget _buildPaymentCard(Map<String, dynamic> item, bool showViewButton) {
-    // For preacher: show rejection from either officer (status) or admin (adminStatus)
-    final status = item['status'] ?? '';
-    final adminStatus = item['adminStatus'] ?? '';
-    
-    // Priority: show rejection if either rejected, otherwise show adminStatus
-    final displayStatus = status.toLowerCase() == 'rejected' 
-        ? status 
-        : (adminStatus.toLowerCase() == 'rejected' 
-            ? adminStatus 
-            : (adminStatus.isNotEmpty ? adminStatus : 'Pending'));
+    // For admin page, display adminStatus instead of officer status
+    final displayStatus = item['adminStatus'] ?? 'Pending';
     
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -168,13 +160,12 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
   }
 
   List<Map<String, dynamic>> _getPendingPayments() {
-    // Combine all sources and filter by adminStatus='pending' BUT exclude any rejections
+    // Admin pending tab shows items approved by officer (status='approved') but not yet processed by admin (adminStatus='pending')
     final allItems = [...store.pending.value, ...store.approved.value, ...store.rejected.value, ...store.history.value];
     final filtered = allItems.where((item) {
-      final adminStatus = (item['adminStatus'] ?? 'pending').toLowerCase();
       final status = (item['status'] ?? '').toLowerCase();
-      // Show only if adminStatus is pending AND neither status nor adminStatus is rejected
-      return adminStatus == 'pending' && status != 'rejected' && adminStatus != 'rejected';
+      final adminStatus = (item['adminStatus'] ?? 'pending').toLowerCase();
+      return status == 'approved' && adminStatus == 'pending';
     }).toList();
     
     // Deduplicate by ID
@@ -188,7 +179,7 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
   }
 
   List<Map<String, dynamic>> _getApprovedPayments() {
-    // Combine all sources and filter by adminStatus='approved' (final admin decision)
+    // Admin approved tab shows items approved by admin (adminStatus='approved')
     final allItems = [...store.pending.value, ...store.approved.value, ...store.rejected.value, ...store.history.value];
     final filtered = allItems.where((item) => 
       (item['adminStatus'] ?? '').toLowerCase() == 'approved'
@@ -205,14 +196,11 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
   }
 
   List<Map<String, dynamic>> _getRejectedPayments() {
-    // Combine all sources and filter by status='rejected' OR adminStatus='rejected'
+    // Admin rejected tab shows items rejected by admin (adminStatus='rejected')
     final allItems = [...store.pending.value, ...store.approved.value, ...store.rejected.value, ...store.history.value];
-    final filtered = allItems.where((item) {
-      final status = (item['status'] ?? '').toLowerCase();
-      final adminStatus = (item['adminStatus'] ?? '').toLowerCase();
-      // Show if either officer or admin rejected
-      return status == 'rejected' || adminStatus == 'rejected';
-    }).toList();
+    final filtered = allItems.where((item) => 
+      (item['adminStatus'] ?? '').toLowerCase() == 'rejected'
+    ).toList();
     
     // Deduplicate by ID
     final seen = <String>{};
@@ -296,16 +284,13 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
   }
 
   void _showDetailModal(BuildContext context, Map<String, dynamic> item) {
-    // For preacher: show rejection from either officer (status) or admin (adminStatus)
-    final status = item['status'] ?? '';
-    final adminStatus = item['adminStatus'] ?? '';
+    // Check if this is a pending payment for admin (officer approved but admin hasn't processed yet)
+    final status = (item['status'] ?? '').toLowerCase();
+    final adminStatus = (item['adminStatus'] ?? 'pending').toLowerCase();
+    final isPending = status == 'approved' && adminStatus == 'pending';
     
-    // Priority: show rejection if either rejected, otherwise show adminStatus
-    final displayStatus = status.toLowerCase() == 'rejected' 
-        ? status 
-        : (adminStatus.toLowerCase() == 'rejected' 
-            ? adminStatus 
-            : (adminStatus.isNotEmpty ? adminStatus : 'Pending'));
+    // For admin modal, display adminStatus
+    final displayStatus = item['adminStatus'] ?? 'Pending';
     
     showModalBottomSheet(
       context: context,
@@ -429,10 +414,135 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
                     ),
                   ),
                 ),
+                // Action buttons for pending payments
+                if (isPending) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _handleReject(item);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red.shade50,
+                            foregroundColor: Colors.red,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text(
+                            'Reject',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _handleApprove(item);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green.shade50,
+                            foregroundColor: Colors.green,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text(
+                            'Approve and Send to Yayasan',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 16),
               ],
             ),
           ),
+        );
+      },
+    );
+  }
+
+  void _handleApprove(Map<String, dynamic> item) {
+    final itemId = item['id']?.toString();
+    
+    if (itemId == null || itemId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid payment ID'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    store.adminApproveById(itemId);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Payment approved and sent to Yayasan'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _handleReject(Map<String, dynamic> item) {
+    final itemId = item['id']?.toString();
+    
+    if (itemId == null || itemId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid payment ID'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Show rejection reason dialog
+    final reasonController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Reject Payment'),
+          content: TextField(
+            controller: reasonController,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Rejection Reason (Optional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                store.adminRejectById(itemId, reason: reasonController.text);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Payment rejected'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              },
+              child: const Text('Reject'),
+            ),
+          ],
         );
       },
     );

@@ -37,7 +37,12 @@ class _OfficerApprovePaymentPageState extends State<OfficerApprovePaymentPage> {
         padding: const EdgeInsets.all(12.0),
         child: ValueListenableBuilder<List<Map<String, dynamic>>>(
             valueListenable: store.pending,
-            builder: (context, pendingList, _) {
+            builder: (context, allPending, _) {
+              // Filter to show only Submitted status
+              final pendingList = allPending.where((item) => 
+                (item['status'] ?? '').toLowerCase() == 'submitted'
+              ).toList();
+              
               if (pendingList.isEmpty) return const Center(child: Text('No pending approvals'));
               return ListView.builder(
                 itemCount: pendingList.length,
@@ -122,8 +127,12 @@ class _OfficerApprovePaymentPageState extends State<OfficerApprovePaymentPage> {
     );
   }
 
-  Future<void> _showDetailModal(BuildContext context, Map<String, dynamic> item, int index) async {
-    store.markViewed(index);
+  Future<void> _showDetailModal(BuildContext context, Map<String, dynamic> item, int displayIndex) async {
+    // Find the actual index in the original pending list
+    final actualIndex = store.pending.value.indexWhere((p) => p['id'] == item['id']);
+    if (actualIndex == -1) return;
+    
+    store.markViewed(actualIndex);
     final TextEditingController amountCtrl = TextEditingController();
 
     await showModalBottomSheet(
@@ -229,8 +238,12 @@ class _OfficerApprovePaymentPageState extends State<OfficerApprovePaymentPage> {
                             child: ElevatedButton(
                               onPressed: hasAmount
                                   ? () {
-                                      // approve and move to history
-                                      store.approvePending(index, amountCtrl.text);
+                                      // Find actual index in original pending list
+                                      final actualIndex = store.pending.value.indexWhere((p) => p['id'] == item['id']);
+                                      if (actualIndex != -1) {
+                                        // approve and move to history
+                                        store.approvePending(actualIndex, amountCtrl.text);
+                                      }
                                       Navigator.pop(context);
                                     }
                                   : null,
@@ -253,7 +266,11 @@ class _OfficerApprovePaymentPageState extends State<OfficerApprovePaymentPage> {
                                 ),
                               );
                               if (confirmed == true) {
-                                store.rejectPending(index);
+                                // Find actual index in original pending list
+                                final actualIndex = store.pending.value.indexWhere((p) => p['id'] == item['id']);
+                                if (actualIndex != -1) {
+                                  store.rejectPending(actualIndex);
+                                }
                                 Navigator.pop(context);
                               }
                             },

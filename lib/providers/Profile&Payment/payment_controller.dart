@@ -3,32 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class PaymentController {
   PaymentController._internal() {
-    // initialize with fake pending data
-    pending.value = [
-      {
-        'id': 'APP001',
-        'preacher': 'John Doe',
-        'preacherId': 'F-3001',
-        'eventName': 'Friday Sermon',
-        'date': '2025-10-21',
-        'address': 'Central Mosque, Kuantan',
-        'description': 'Short description about Friday Sermon activity',
-        'status': 'Submitted',
-        'viewed': false,
-      },
-      {
-        'id': 'APP002',
-        'preacher': 'Community Talk',
-        'preacherId': 'F-3002',
-        'eventName': 'Community Talk',
-        'date': '2025-10-19',
-        'address': 'Masjid Al-Falah',
-        'description': 'Community Talk details',
-        'status': 'Submitted',
-        'viewed': false,
-      },
-    ];
-    history.value = []; // start empty
+    // Load initial mock data (will be replaced with database later)
+    pending.value = _getInitialPendingPayments();
+    approved.value = [];
+    rejected.value = [];
+    history.value = [];
 
     // initialize role from current auth session (NOT profile)
     _initRoleListener();
@@ -39,12 +18,56 @@ class PaymentController {
 
   final ValueNotifier<List<Map<String, dynamic>>> pending = ValueNotifier([]);
   final ValueNotifier<List<Map<String, dynamic>>> history = ValueNotifier([]);
+  final ValueNotifier<List<Map<String, dynamic>>> approved = ValueNotifier([]);
+  final ValueNotifier<List<Map<String, dynamic>>> rejected = ValueNotifier([]);
 
   /// Role read ONLY from authenticated session token claims (single source of truth).
   final ValueNotifier<String?> role = ValueNotifier(null);
 
   /// Track which Firebase UID the current `role.value` belongs to.
   String? _roleForUid;
+
+  /// Get initial mock payment data (temporary - will be replaced with database)
+  List<Map<String, dynamic>> _getInitialPendingPayments() {
+    return [
+      {
+        'id': 'APP001',
+        'preacher': 'John Doe',
+        'preacherId': 'F-3001',
+        'eventName': 'Friday Sermon',
+        'date': '2025-10-21',
+        'address': 'Central Mosque, Kuantan',
+        'description': 'test 1',
+        'status': 'Submitted',
+        'adminStatus': 'Pending',
+        'viewed': false,
+      },
+      {
+        'id': 'APP002',
+        'preacher': 'Community Talk',
+        'preacherId': 'F-3002',
+        'eventName': 'Community Talk',
+        'date': '2025-10-19',
+        'address': 'Masjid Al-Falah',
+        'description': 'test 2',
+        'status': 'Submitted',
+        'adminStatus': 'Pending',
+        'viewed': false,
+      },
+      {
+        'id': 'APP003',
+        'preacher': 'yousef Talk',
+        'preacherId': 'F-3003',
+        'eventName': 'yousef Talk',
+        'date': '2025-10-19',
+        'address': 'Masjid Al-Falah',
+        'description': 'test 3',
+        'status': 'Submitted',
+        'adminStatus': 'Pending',
+        'viewed': false,
+      }
+    ];
+  }
 
   void _initRoleListener() {
     FirebaseAuth.instance.authStateChanges().listen((user) async {
@@ -69,7 +92,7 @@ class PaymentController {
 
   Future<void> _loadRoleFromToken(User user, {required bool forceRefresh}) async {
     try {
-      // Read role from token claims ONLY.
+      // Read role from token claims ONLY
       final idTokenResult = await user.getIdTokenResult(forceRefresh);
       final claims = idTokenResult.claims ?? {};
       final dynamic roleClaim = claims['role'];
@@ -131,21 +154,50 @@ class PaymentController {
 
     final item = Map<String, dynamic>.from(list[index]);
     item['status'] = 'Approved';
+    // Initialize adminStatus if not present
+    if (!item.containsKey('adminStatus')) {
+      item['adminStatus'] = 'Pending';
+    }
 
     final parsed = num.tryParse(amountStr.replaceAll(',', '')) ?? item['amount'];
     item['amount'] = parsed;
 
+    // Add to both history and approved lists
     final newHistory = List<Map<String, dynamic>>.from(history.value);
     newHistory.insert(0, item);
     history.value = newHistory;
+
+    final newApproved = List<Map<String, dynamic>>.from(approved.value);
+    newApproved.insert(0, item);
+    approved.value = newApproved;
 
     list.removeAt(index);
     pending.value = list;
   }
 
-  void rejectPending(int index) {
+  void rejectPending(int index, {String reason = ''}) {
     final list = List<Map<String, dynamic>>.from(pending.value);
     if (index < 0 || index >= list.length) return;
+
+    final item = Map<String, dynamic>.from(list[index]);
+    item['status'] = 'Rejected';
+    // Initialize adminStatus if not present
+    if (!item.containsKey('adminStatus')) {
+      item['adminStatus'] = 'Pending';
+    }
+    if (reason.isNotEmpty) {
+      item['rejectionReason'] = reason;
+    }
+
+    // Add to both history and rejected lists
+    final newHistory = List<Map<String, dynamic>>.from(history.value);
+    newHistory.insert(0, item);
+    history.value = newHistory;
+
+    final newRejected = List<Map<String, dynamic>>.from(rejected.value);
+    newRejected.insert(0, item);
+    rejected.value = newRejected;
+
     list.removeAt(index);
     pending.value = list;
   }
@@ -153,6 +205,69 @@ class PaymentController {
   void addToHistory(Map<String, dynamic> item) {
     final newHistory = List<Map<String, dynamic>>.from(history.value);
     newHistory.insert(0, Map<String, dynamic>.from(item));
+    history.value = newHistory;
+  }
+
+  /// Admin-specific approve method - updates adminStatus field
+  void adminApproveById(String itemId) {
+    // Find item across all lists by ID
+    Map<String, dynamic>? foundItem;
+    
+    for (var item in [...pending.value, ...approved.value, ...rejected.value, ...history.value]) {
+      if (item['id'] == itemId) {
+        foundItem = Map<String, dynamic>.from(item);
+        break;
+      }
+    }
+    
+    if (foundItem == null) return;
+    
+    // Update adminStatus
+    foundItem['adminStatus'] = 'Approved';
+    
+    // Remove from all existing lists
+    _removeItemById(itemId);
+    
+    // Add only to history list (single source)
+    final newHistory = List<Map<String, dynamic>>.from(history.value);
+    newHistory.insert(0, foundItem);
+    history.value = newHistory;
+  }
+  
+  /// Helper to remove item by ID from all lists
+  void _removeItemById(String itemId) {
+    pending.value = pending.value.where((item) => item['id'] != itemId).toList();
+    approved.value = approved.value.where((item) => item['id'] != itemId).toList();
+    rejected.value = rejected.value.where((item) => item['id'] != itemId).toList();
+    history.value = history.value.where((item) => item['id'] != itemId).toList();
+  }
+
+  /// Admin-specific reject method - updates adminStatus field
+  void adminRejectById(String itemId, {String reason = ''}) {
+    // Find item across all lists by ID
+    Map<String, dynamic>? foundItem;
+    
+    for (var item in [...pending.value, ...approved.value, ...rejected.value, ...history.value]) {
+      if (item['id'] == itemId) {
+        foundItem = Map<String, dynamic>.from(item);
+        break;
+      }
+    }
+    
+    if (foundItem == null) return;
+    
+    // Update adminStatus
+    foundItem['adminStatus'] = 'Rejected';
+    if (reason.isNotEmpty) {
+      foundItem['adminRejectionReason'] = reason;
+    }
+    
+    // Remove from all existing lists
+    _removeItemById(itemId);
+    
+    // Add only to history list (single source)
+    final newHistory = List<Map<String, dynamic>>.from(history.value);
+    newHistory.insert(0, foundItem);
     history.value = newHistory;
   }
 }
