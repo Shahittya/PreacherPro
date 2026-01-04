@@ -185,7 +185,7 @@ class _EditPreacherFormState extends State<EditPreacherForm> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _status,
+                      initialValue: _status,
                       decoration: const InputDecoration(labelText: 'Status'),
                       items: ['Active', 'Inactive']
                           .map((s) => DropdownMenuItem(value: s, child: Text(s)))
@@ -196,7 +196,7 @@ class _EditPreacherFormState extends State<EditPreacherForm> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _trainingStatus,
+                      initialValue: _trainingStatus,
                       decoration: const InputDecoration(labelText: 'Training'),
                       items: ['completed', 'pending', 'in progress']
                           .map((s) => DropdownMenuItem(value: s, child: Text(s)))

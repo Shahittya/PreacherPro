@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'home_screen.dart';
 import '../providers/Login/LoginController.dart';
-import 'Login/loginpage.dart';
 import 'ManageProfile/userProfilePage.dart';
+import 'ManageActivity/officer/officerActivityList.dart';
 
 class OfficerDashboard extends StatefulWidget {
   const OfficerDashboard({super.key});
@@ -14,6 +13,19 @@ class OfficerDashboard extends StatefulWidget {
 
 class _OfficerDashboardState extends State<OfficerDashboard> {
   int _selectedIndex = 0;
+
+  final List<Widget> _pages = [
+    // index 0 - dashboard
+    const _DashboardBody(),
+    // index 1 - activities
+    const OfficerActivityList(),
+    // index 2 - preachers (placeholder)
+    const Center(child: Text('Preachers')),
+    // index 3 - reports (placeholder)
+    const Center(child: Text('Reports')),
+    // index 4 - profile
+    const UserProfilePage(),
+  ];
 
   Future<void> _logout(BuildContext context) async {
     final controller = LoginController();
@@ -39,60 +51,31 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
 
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
-    
     setState(() {
       _selectedIndex = index;
     });
-
-    switch (index) {
-      case 0: // Dashboard
-        break;
-      case 1: // Activities
-        break;
-      case 2: // Preachers
-        break;
-      case 3: // Reports
-        break;
-      case 4: // Profile
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const UserProfilePage()),
-        ).then((_) => setState(() => _selectedIndex = 0));
-        break;
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Officer Dashboard'),
-        backgroundColor: Colors.amber.shade300,
-        foregroundColor: Colors.black,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _logout(context),
-          ),
-        ],
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.admin_panel_settings, size: 80, color: Colors.amber.shade300),
-            const SizedBox(height: 20),
-            const Text(
-              'Welcome to Officer Dashboard',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Your content will be here',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-            ),
-          ],
-        ),
+      appBar: _selectedIndex == 0
+          ? AppBar(
+              automaticallyImplyLeading: false,
+              title: const Text('Officer Dashboard'),
+              backgroundColor: Colors.amber.shade300,
+              foregroundColor: Colors.black,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  onPressed: () => _logout(context),
+                ),
+              ],
+            )
+          : null, // No AppBar for other tabs
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -143,6 +126,33 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// Small dashboard body widget
+class _DashboardBody extends StatelessWidget {
+  const _DashboardBody();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.admin_panel_settings, size: 80, color: Colors.amber.shade300),
+          const SizedBox(height: 20),
+          const Text(
+            'Welcome to Officer Dashboard',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Your content will be here',
+            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+          ),
+        ],
       ),
     );
   }

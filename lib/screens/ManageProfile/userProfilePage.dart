@@ -39,6 +39,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
         return Scaffold(
           backgroundColor: Colors.grey[100],
           appBar: AppBar(
+            automaticallyImplyLeading: false, // Removes the back arrow button
             title: const Text('Profile'),
             backgroundColor: themeColor,
             foregroundColor: Colors.white,
