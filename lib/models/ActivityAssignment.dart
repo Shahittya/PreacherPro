@@ -75,9 +75,26 @@ class ActivityAssignment {
     });
   }
 
+  // Update preacher assignment
+  static Future<void> updatePreacher(String docId, String newPreacherId) async {
+    await _assignmentsCollection.doc(docId).update({
+      'preacher_id': newPreacherId,
+    });
+  }
+
   // Delete assignment
   static Future<void> deleteAssignment(String docId) async {
     await _assignmentsCollection.doc(docId).delete();
+  }
+
+  // Delete assignment by activity ID
+  static Future<void> deleteAssignmentByActivity(int activityId) async {
+    final snapshot = await _assignmentsCollection
+        .where('activity_id', isEqualTo: activityId)
+        .get();
+    for (var doc in snapshot.docs) {
+      await doc.reference.delete();
+    }
   }
 
   // Stream assignments by preacher

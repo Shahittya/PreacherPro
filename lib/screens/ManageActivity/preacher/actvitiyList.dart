@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../models/ActivityData.dart';
+import '../../../models/ActivityAssignment.dart';
 import '../../../providers/ActvitiyController.dart';
 import 'submit_report.dart';
 import 'editSubmission.dart';
@@ -31,91 +33,76 @@ class _ActivityListState extends State<ActivityList> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
+     appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Text('Activities'),
-        backgroundColor: Colors.lightGreen,
-        elevation: 0,
         centerTitle: true,
+        elevation: 2,
+        backgroundColor: Colors.lightGreen.shade400,
+        title: const Text(
+          'My Activities',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+        ),
       ),
+
       body: Column(
         children: [
           // Search and filter row
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Search by title, location, officer...',
-                      prefixIcon: Icon(Icons.search, color: Colors.white),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          decoration: InputDecoration(
+                            hintText: 'Search activities...',
+                            prefixIcon: const Icon(Icons.search),
+                            filled: true,
+                            fillColor: Colors.grey.shade100,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          onChanged: (v) {
+                            setState(() => searchText = v.trim().toLowerCase());
+                          },
+                        ),
                       ),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
-                      
-                    ),
-                    onChanged: (value) {
-                      setState(() {
-                        searchText = value.trim().toLowerCase();
-                      });
-                    },
+                      const SizedBox(width: 8),
+                      _statusFilterChip(),
+                      IconButton(
+                        icon: Icon(
+                          Icons.calendar_month,
+                          color: selectedDate != null
+                              ? Colors.green
+                              : Colors.grey,
+                        ),
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: selectedDate ?? DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
+                          if (picked != null) {
+                            setState(() => selectedDate = picked);
+                          }
+                        },
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                DropdownButton<String>(
-                  value: selectedStatus,
-                  items: ['All', 'checked_in', 'assigned', 'pending', 'approved', 'rejected']
-                      .map((status) => DropdownMenuItem(
-                            value: status,
-                            child: Text(status == 'All' ? 'All Status' : status),
-                          ))
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      selectedStatus = value ?? 'All';
-                    });
-                  },
-                  underline: Container(),
-                  style: const TextStyle(color: Colors.black, fontSize: 14),
-                ),
-                const SizedBox(width: 12),
-                IconButton(
-                  icon: Icon(
-                    Icons.calendar_month,
-                    color: selectedDate != null ? Colors.green : Colors.lightGreen,
-                  ),
-                  onPressed: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: selectedDate ?? DateTime.now(),
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2100),
-                    );
-                    if (picked != null) {
-                      setState(() {
-                        selectedDate = picked;
-                      });
-                    }
-                  },
-                ),
-                if (selectedDate != null)
-                  IconButton(
-                    icon: const Icon(Icons.clear, color: Colors.red),
-                    tooltip: 'Clear date filter',
-                    onPressed: () {
-                      setState(() {
-                        selectedDate = null;
-                      });
-                    },
-                  ),
-              ],
+              ),
             ),
-          ),
           if (selectedDate != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -143,7 +130,7 @@ class _ActivityListState extends State<ActivityList> {
           // Activity list
           Expanded(
             child: StreamBuilder<List<ActivityData>>(
-              stream: controller.activitiesStream(),
+              stream: controller.preacherActivitiesStream(currentUid),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -211,92 +198,110 @@ class _ActivityListState extends State<ActivityList> {
                     }
 
                     return ListView.separated(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(10),
                       itemCount: myActivities.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final a = myActivities[index];
                         return Container(
-                      margin: const EdgeInsets.only(bottom: 4),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(offset: const Offset(0, 3), blurRadius: 6, color: Colors.black12.withOpacity(0.06)),
-                        ],
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Title + Status
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(a.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border(
+                              left: BorderSide(
+                                color: Colors.lightGreen.shade400,
+                                width: 4,
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: _statusBgColor(a.status),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  a.status.toUpperCase(),
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: _statusTextColor(a.status),
-                                  ),
-                                ),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                blurRadius: 14,
+                                offset: const Offset(0, 4),
+                                color: Colors.black.withOpacity(0.08),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          Row(children: [
-                            const Icon(Icons.calendar_month, size: 16, color: Colors.lightGreen),
-                            const SizedBox(width: 8),
-                            Text(a.activityDate),
-                            const SizedBox(width: 8),
-                            Text('${a.startTime} - ${a.endTime}'),
-                          ]),
-                          const SizedBox(height: 8),
-                          Row(children: [
-                            const Icon(Icons.location_on, size: 16, color: Colors.red),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(a.locationName)),
-                          ]),
-                          const SizedBox(height: 2),
-                          Row(children: [
-                            const Icon(Icons.person, size: 16, color: Colors.black),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text('Officer: ${a.officerName ?? a.createdBy}')),
-                           if (a.status.toUpperCase() == 'ASSIGNED') ...[
-                              ElevatedButton(
-                                onPressed: () => _showDetailsPopup(context, a), // full details + check-in
-                                child: const Text('View Details'),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      a.title,
+                                      style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  _statusChip(a.status),
+                                ],
                               ),
-                            ]  else if (a.status.toUpperCase() == 'CHECKED_IN') ...[
-                               ElevatedButton(
-                                onPressed: () => _showCheckedInPopup(context, a), // summary popup with 2 buttons
-                                child: const Text('View'),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _infoRow(Icons.calendar_month, a.activityDate),
+                                  ),
+                                  Expanded(
+                                    child: _infoRow(Icons.access_time, '${a.startTime} - ${a.endTime}'),
+                                  ),
+                                ],
                               ),
-                            ] else if (a.status.toUpperCase() == 'PENDING') ...[
-                              ElevatedButton(
-                                onPressed: () => _showEditSubmissionPopup(context, a),
-                                child: const Text('View'),
+                              const SizedBox(height: 3),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: Colors.lightGreen.shade50,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.lightGreen.shade100,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Icon(Icons.location_on, color: Colors.lightGreen, size: 18),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        a.locationName,
+                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                             
-                            ] else ...[
-                              ElevatedButton(
-                                onPressed: () => _showDetailsPopup(context, a),
-                                child: const Text('View Details'),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () => _showDetailsPopup(context, a),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.lightGreen.shade400,
+                                        foregroundColor: Colors.white,
+                                        minimumSize: const Size.fromHeight(44),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        a.status.toLowerCase() == 'pending'
+                                            ? 'View Submission'
+                                            : 'View Details',
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
-
-                          ]),
-                        ],
-                      ),
+                          ),
                         );
                       },
                     );
@@ -330,17 +335,36 @@ class _ActivityListState extends State<ActivityList> {
     switch ((status ?? '').toUpperCase()) {
       case "CHECKED_IN":
       case "ASSIGNED":
-        return Colors.yellow.shade900;
+        return Colors.orange.shade800;
       case "APPROVED":
         return Colors.green.shade800;
       case "PENDING":
         return Colors.orange.shade900;
       case "REJECTED":
-        return Colors.red.shade900;
+        return Colors.red.shade800;
       default:
-        return Colors.grey.shade800;
+        return Colors.grey.shade700;
     }
   }
+
+Widget _infoRow(IconData icon, String text) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.lightGreen),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 13, color: Colors.black),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 
 
 //view details popup
@@ -367,6 +391,17 @@ class _ActivityListState extends State<ActivityList> {
             child: ListView(
               controller: scrollController,
               children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
 
                 // Title Row
                 Row(
@@ -403,7 +438,7 @@ class _ActivityListState extends State<ActivityList> {
 
                 const SizedBox(height: 16),
                 _sectionHeader("Activity Details"),
-                _detailRow(Icons.topic, "Topic", a.title),
+                _detailRow(Icons.topic, "Topic", a.topic),
                 _detailRow(Icons.description, "Description", a.description),
 
                 const SizedBox(height: 16),
@@ -423,12 +458,12 @@ class _ActivityListState extends State<ActivityList> {
 
                 SizedBox(height: 20),
 
-                // If the activity is waiting for check-in
-                if (a.status.toLowerCase() == "assigned") ...[
+                // If the activity is waiting for check-in (only show 1 hour before to 1 hour after)
+                if (a.status.toLowerCase() == "assigned" && _isCheckInTimeValid(a)) ...[
                   ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pop(context);
-                      _checkInGPS(a); // <-- your GPS function here
+                      _checkInGPS(a);
                     },
                     icon: const Icon(Icons.location_on),
                     label: const Text("Check-In (GPS)"),
@@ -437,6 +472,30 @@ class _ActivityListState extends State<ActivityList> {
                       foregroundColor: Colors.white,
                       minimumSize: const Size.fromHeight(48),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ] else if (a.status.toLowerCase() == "assigned") ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.schedule, color: Colors.orange.shade700),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Check-in opens 1 hour before activity start time',
+                            style: TextStyle(
+                              color: Colors.orange.shade900,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -467,7 +526,9 @@ class _ActivityListState extends State<ActivityList> {
                   label: const Text("Close"),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
-                    side: BorderSide(color: Colors.green),
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.red.shade700),
+                    backgroundColor: Colors.red.shade700,
                   ),
                 ),
 
@@ -481,29 +542,53 @@ class _ActivityListState extends State<ActivityList> {
 }
 Widget _sectionHeader(String title) {
   return Padding(
-    padding: const EdgeInsets.only(bottom: 6),
+    padding: const EdgeInsets.only(top: 16, bottom: 6),
     child: Text(
-      title,
-      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+      title.toUpperCase(),
+      style: TextStyle(
+        fontSize: 13,
+        letterSpacing: 1.2,
+        fontWeight: FontWeight.bold,
+        color: Colors.grey.shade700,
+      ),
     ),
   );
 }
 
 Widget _detailRow(IconData icon, String label, String value) {
-  return Container(
-    padding: const EdgeInsets.symmetric(vertical: 10),
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: Colors.green),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.lightGreen.shade50,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: Colors.lightGreen, size: 20),
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 13, color: Colors.black)),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Colors.black54,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
@@ -522,6 +607,7 @@ Widget _statusChip(String status) {
     child: Text(
       status.toUpperCase(),
       style: TextStyle(
+        fontSize: 12,
         fontWeight: FontWeight.bold,
         color: _statusTextColor(status),
       ),
@@ -531,20 +617,20 @@ Widget _statusChip(String status) {
 
 Widget _gpsVerifiedBadge() {
   return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
     decoration: BoxDecoration(
-      color: _statusBgColor("checked_in"),
+      color: Colors.green.shade50,
       borderRadius: BorderRadius.circular(20),
       border: Border.all(color: Colors.green.shade300),
     ),
     child: Row(
       children: [
-        Icon(Icons.verified, color: _statusTextColor("checked_in"), size: 18),
+        const Icon(Icons.verified, color: Colors.green, size: 18),
         const SizedBox(width: 6),
         Text(
           "GPS Verified",
           style: TextStyle(
-            color: _statusTextColor("checked_in"),
+            color: Colors.green.shade700,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -553,236 +639,6 @@ Widget _gpsVerifiedBadge() {
   );
 }
 
-void _showCheckedInPopup(BuildContext context, ActivityData a) {
-  showDialog(
-    context: context,
-    builder: (_) {
-      return Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        elevation: 8,
-        backgroundColor: Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title row with close icon
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      a.title,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, size: 24, color: Colors.black54),
-                  ),
-                ],
-              ),
-              Text(
-                a.locationName,
-                style: const TextStyle(fontSize: 14, color: Colors.black54),
-              ),
-              const SizedBox(height: 18),
-
-              // Info Box
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  children: [
-                    _popupDetail(Icons.calendar_today, "Date", a.activityDate),
-                    _popupDetail(Icons.access_time, "Time", a.startTime),
-                    _popupDetail(Icons.admin_panel_settings, "Officer", a.officerName ?? a.createdBy),
-                    _popupDetail(Icons.verified, "Status", "CHECKED-IN"),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 22),
-              Divider(height: 1, color: Colors.grey.shade300),
-              const SizedBox(height: 18),
-
-              // Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showDetailsPopup(context, a);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        elevation: 0,
-                      ),
-                      child: const Text("View Details"),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _navigateToReportForm(context, a);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        elevation: 0,
-                      ),
-                      child: const Text("Submit Report"),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 10),
-
-              // Close button
-              Center(
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Close", style: TextStyle(color: Colors.black87)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-void _showEditSubmissionPopup(BuildContext context, ActivityData a) {
-  showDialog(
-    context: context,
-    builder: (_) {
-      return Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        elevation: 8,
-        backgroundColor: Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title row with close icon
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      a.title,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, size: 24, color: Colors.black54),
-                  ),
-                ],
-              ),
-              Text(
-                a.locationName,
-                style: const TextStyle(fontSize: 14, color: Colors.black54),
-              ),
-              const SizedBox(height: 18),
-
-              // Info Box
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  children: [
-                    _popupDetail(Icons.calendar_today, "Date", a.activityDate),
-                    _popupDetail(Icons.access_time, "Time", a.startTime),
-                    _popupDetail(Icons.admin_panel_settings, "Officer", a.officerName ?? a.createdBy),
-                    _popupDetail(Icons.pending, "Status", "PENDING"),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 22),
-              Divider(height: 1, color: Colors.grey.shade300),
-              const SizedBox(height: 18),
-
-              // Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showDetailsPopup(context, a);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        elevation: 0,
-                      ),
-                      child: const Text("View Details"),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _navigateToEditSubmission(context, a);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        elevation: 0,
-                      ),
-                      child: const Text("Edit Submission"),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 10),
-
-              // Close button
-              Center(
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Close", style: TextStyle(color: Colors.black87)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
 /// --- Small detail row widget for popup ---
 Widget _popupDetail(IconData icon, String label, String value) {
   return Padding(
@@ -822,10 +678,190 @@ void _navigateToEditSubmission(BuildContext context, ActivityData a) {
     ),
   );
 }
+
+  bool _isCheckInTimeValid(ActivityData activity) {
+    try {
+      final now = DateTime.now();
+      
+      // Parse activity date
+      final activityDateStr = activity.activityDate.trim();
+      DateTime? activityDate;
+      if (activityDateStr.contains('/')) {
+        final parts = activityDateStr.split('/');
+        if (parts.length == 3) {
+          activityDate = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+        }
+      } else if (activityDateStr.contains('-')) {
+        final parts = activityDateStr.split('-');
+        if (parts.length == 3) {
+          activityDate = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+        }
+      }
+      
+      if (activityDate == null) return false;
+      
+      // Check if today is the activity date
+      final today = DateTime(now.year, now.month, now.day);
+      final activityDay = DateTime(activityDate.year, activityDate.month, activityDate.day);
+      if (!today.isAtSameMomentAs(activityDay)) return false;
+      
+      // Parse start and end times
+      final startParts = activity.startTime.split(':');
+      final endParts = activity.endTime.split(':');
+      if (startParts.length < 2 || endParts.length < 2) return false;
+      
+      final startHour = int.parse(startParts[0]);
+      final startMinute = int.parse(startParts[1]);
+      final endHour = int.parse(endParts[0]);
+      final endMinute = int.parse(endParts[1]);
+      
+      final currentMinutes = now.hour * 60 + now.minute;
+      final startMinutes = startHour * 60 + startMinute;
+      final endMinutes = endHour * 60 + endMinute;
+      
+      // Check-in window: 1 hour before start to 1 hour after end
+      final earliestCheckIn = startMinutes - 60;
+      final latestCheckIn = endMinutes + 60;
+      
+      return currentMinutes >= earliestCheckIn && currentMinutes <= latestCheckIn;
+    } catch (e) {
+      return false;
+    }
+  }
+  
   // GPS check-in: only allow when near assigned location
   Future<void> _checkInGPS(ActivityData activity) async {
-    const allowedMeters = 200.0; // adjust threshold as needed
+    const allowedMeters = 200.0; // 100-meter radius validation
 
+    // Get current user ID
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User not authenticated')),
+      );
+      return;
+    }
+
+    // 1. ASSIGNMENT VALIDATION
+    ActivityAssignment? assignment = activity.assignment;
+    assignment ??= await ActivityAssignment.getAssignmentByActivity(activity.activityId);
+    
+    if (assignment == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No assignment found for this activity')),
+      );
+      return;
+    }
+
+    if (assignment.preacherId != currentUid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This activity is not assigned to you')),
+      );
+      return;
+    }
+
+    // 6. SINGLE CHECK-IN RULE
+    if (activity.status.toLowerCase() == 'checked_in') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You have already checked in for this activity')),
+      );
+      return;
+    }
+
+    // 2. ACTIVITY DATE VALIDATION
+    final now = DateTime.now();
+    DateTime? activityDate;
+    
+    try {
+      final activityDateStr = activity.activityDate.trim();
+      if (activityDateStr.contains('/')) {
+        final parts = activityDateStr.split('/');
+        if (parts.length == 3) {
+          activityDate = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+        }
+      } else if (activityDateStr.contains('-')) {
+        final parts = activityDateStr.split('-');
+        if (parts.length == 3) {
+          activityDate = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid activity date format')),
+      );
+      return;
+    }
+
+    if (activityDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Activity date is not properly set')),
+      );
+      return;
+    }
+
+    final today = DateTime(now.year, now.month, now.day);
+    final activityDay = DateTime(activityDate.year, activityDate.month, activityDate.day);
+
+    if (today.isBefore(activityDay)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot check in before the activity date')),
+      );
+      return;
+    }
+
+    if (today.isAfter(activityDay)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot check in after the activity date')),
+      );
+      return;
+    }
+
+    // 3. TIME WINDOW VALIDATION
+    TimeOfDay? startTime;
+    TimeOfDay? endTime;
+    
+    try {
+      final startParts = activity.startTime.split(':');
+      if (startParts.length >= 2) {
+        startTime = TimeOfDay(hour: int.parse(startParts[0]), minute: int.parse(startParts[1]));
+      }
+      
+      final endParts = activity.endTime.split(':');
+      if (endParts.length >= 2) {
+        endTime = TimeOfDay(hour: int.parse(endParts[0]), minute: int.parse(endParts[1]));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid activity time format')),
+      );
+      return;
+    }
+
+    if (startTime != null && endTime != null) {
+      final currentTime = TimeOfDay.fromDateTime(now);
+      final currentMinutes = currentTime.hour * 60 + currentTime.minute;
+      final startMinutes = startTime.hour * 60 + startTime.minute;
+      final endMinutes = endTime.hour * 60 + endTime.minute;
+      
+      // Allow check-in up to 1 hour before start time
+      final earliestCheckInMinutes = startMinutes - 60;
+      
+      if (currentMinutes < earliestCheckInMinutes) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Check-in opens 1 hour before activity start time')),
+        );
+        return;
+      }
+      
+      if (currentMinutes > endMinutes) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Check-in closed. Activity time has ended')),
+        );
+        return;
+      }
+    }
+
+    // Coordinate validation
     if (activity.locationLat == 0 || activity.locationLng == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Activity has no valid coordinates.')),
@@ -833,11 +869,12 @@ void _navigateToEditSubmission(BuildContext context, ActivityData a) {
       return;
     }
 
-    // Permissions and service check
+    // 4. GPS PERMISSION VALIDATION
     final permOk = await _ensureLocationPermission();
     if (!permOk) return;
 
     try {
+      // 5. GPS DISTANCE VALIDATION
       final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.best);
       final distance = Geolocator.distanceBetween(
         pos.latitude,
@@ -846,19 +883,61 @@ void _navigateToEditSubmission(BuildContext context, ActivityData a) {
         activity.locationLng,
       );
 
+      // Debug: Show current and target locations
+      print('📍 Current GPS: ${pos.latitude}, ${pos.longitude}');
+      print('🎯 Target location: ${activity.locationLat}, ${activity.locationLng}');
+      print('📏 Distance: ${distance.toStringAsFixed(2)} meters');
+
+      final verificationResult = distance <= allowedMeters ? 'success' : 'failed';
+      final submissionId = now.millisecondsSinceEpoch;
+      final verificationId = now.millisecondsSinceEpoch + 1;
+
+      // Store GPS verification log (always, regardless of success/failure)
+      await FirebaseFirestore.instance.collection('gps_verification_logs').add({
+        'verification_id': verificationId,
+        'submission_id': submissionId,
+        'captured_latitude': pos.latitude,
+        'captured_longitude': pos.longitude,
+        'expected_latitude': activity.locationLat,
+        'expected_longitude': activity.locationLng,
+        'distance_meters': distance,
+        'verification_result': verificationResult,
+        'verified_at': Timestamp.fromDate(now),
+        'device_info': 'Flutter App - ${now.toIso8601String()}',
+      });
+
       if (distance > allowedMeters) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Too far from location (distance ${(distance / 1000).toStringAsFixed(2)} km).')), 
+          SnackBar(
+            content: Text(
+              'Too far from location (${distance.toStringAsFixed(0)} meters away).\n'
+              'You must be within 100 meters to check in.'
+            ),
+            duration: const Duration(seconds: 5),
+          ),
         );
         return;
       }
 
+      // Create activity_submissions document
+      await FirebaseFirestore.instance.collection('activity_submissions').add({
+        'submission_id': submissionId,
+        'assignment_id': assignment.assignmentId,
+        'preacher_id': currentUid,
+        'gps_latitude': pos.latitude,
+        'gps_longitude': pos.longitude,
+        'gps_timestamp': Timestamp.fromDate(now),
+        'attendance': 'Present',
+        'remarks': '',
+        'attachment_url': '',
+        'submitted_at': Timestamp.fromDate(now),
+      });
+
+      // Update activity and assignment status
       await controller.markCheckedIn(activity);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Check-in successful!')),
-        );
+        _showSuccessDialog();
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -896,4 +975,97 @@ void _navigateToEditSubmission(BuildContext context, ActivityData a) {
 
     return true;
   }
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.green.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check,
+                  color: Colors.green,
+                  size: 40,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Success',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'GPS Check-In successful! Location verified.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'OK',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statusFilterChip() {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12),
+    decoration: BoxDecoration(
+      color: Colors.lightGreen.shade50,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: DropdownButton<String>(
+      value: selectedStatus,
+      underline: const SizedBox(),
+      items: ['All', 'assigned', 'checked_in', 'pending', 'approved', 'rejected']
+          .map((s) => DropdownMenuItem(
+                value: s,
+                child: Text(s),
+              ))
+          .toList(),
+      onChanged: (v) => setState(() => selectedStatus = v!),
+    ),
+  );
+}
+
 }

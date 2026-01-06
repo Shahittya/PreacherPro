@@ -133,6 +133,11 @@ class ActivityData {
     await _activitiesCollection.doc(activity.docId).update(activity.toMap());
   }
 
+  // Update specific fields only
+  static Future<void> updateActivityFields(String docId, Map<String, dynamic> fields) async {
+    await _activitiesCollection.doc(docId).update(fields);
+  }
+
   // Delete
   static Future<void> deleteActivity(String docId) async {
     await _activitiesCollection.doc(docId).delete();
