@@ -209,6 +209,7 @@ class _RegistrationRequestPageState extends State<RegistrationRequestPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Pending Requests'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,

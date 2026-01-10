@@ -171,7 +171,7 @@ class ActivityController extends ChangeNotifier {
         '✅ Filtered to ${activities.length} activities (created by OR assigned by officer)',
       );
 
-      // Fetch assignments and details for each activity and auto-mark no_show when window passed
+      // Fetch assignments and details for each activity and auto-mark check_in_missed when window passed
       for (var activity in activities) {
         await activity.fetchDetails();
         await _autoMarkCheckInMissedIfNeeded(activity);
@@ -303,7 +303,7 @@ class ActivityController extends ChangeNotifier {
     }
   }
 
-  // Auto-mark assigned activities as no_show if past the check-in window (1h after end)
+  // Auto-mark assigned activities as check_in_missed if past the check-in window (1h after end)
   Future<void> _autoMarkCheckInMissedIfNeeded(ActivityData activity) async {
     try {
       if (activity.status.toLowerCase() != 'assigned') return;

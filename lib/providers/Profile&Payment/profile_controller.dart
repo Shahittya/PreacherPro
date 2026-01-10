@@ -36,13 +36,13 @@ class ProfileController extends ChangeNotifier {
   Color getRoleColor() {
     switch (_role.toUpperCase()) {
       case 'ADMIN':
-        return Colors.blue;
+        return Colors.deepPurple;
       case 'OFFICER':
         return Colors.amber.shade300; // Light yellow
       case 'PREACHER':
         return Colors.lightGreen;
       default:
-        return Colors.blue;
+        return Colors.deepPurple;
     }
   }
 

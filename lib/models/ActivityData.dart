@@ -25,6 +25,7 @@ class ActivityData {
   String? explanationManualLocation;
   String? officerDecision; // approved_attended | reject_absent | cancelled
   DateTime? officerDecisionTimestamp;
+  DateTime? submissionSubmittedAt; // when preacher submitted the report
   
   // Additional fields for display
   String? preacherName;
@@ -72,6 +73,7 @@ class ActivityData {
       if (explanationManualLocation != null) 'explanation_manual_location': explanationManualLocation,
       if (officerDecision != null) 'officer_decision': officerDecision,
       if (officerDecisionTimestamp != null) 'officer_decision_timestamp': Timestamp.fromDate(officerDecisionTimestamp!),
+      if (submissionSubmittedAt != null) 'submission_submitted_at': Timestamp.fromDate(submissionSubmittedAt!),
       if (preacherName != null) 'preacher_name': preacherName,
       if (officerName != null) 'officer_name': officerName,
     };
@@ -103,6 +105,7 @@ class ActivityData {
     activity.explanationManualLocation = data['explanation_manual_location'] as String?;
     activity.officerDecision = data['officer_decision'] as String?;
     activity.officerDecisionTimestamp = (data['officer_decision_timestamp'] as Timestamp?)?.toDate();
+    activity.submissionSubmittedAt = (data['submission_submitted_at'] as Timestamp?)?.toDate();
     activity.preacherName = data['preacher_name'] as String?;
     activity.officerName = data['officer_name'] as String?;
     return activity;

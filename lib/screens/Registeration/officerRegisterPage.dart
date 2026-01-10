@@ -115,6 +115,7 @@ class _OfficerRegisterPageState extends State<OfficerRegisterPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Register MUIP Officer'),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,

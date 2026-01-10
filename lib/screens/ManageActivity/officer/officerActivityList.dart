@@ -634,7 +634,7 @@ class _OfficerActivityListState extends State<OfficerActivityList> {
       case 'approved':
         return 'APPROVED / COMPLETED';
       case 'rejected':
-        return 'REJECTED (REQUIRES FIX)';
+        return ' ED (REQUIRES FIX)';
       case 'absent':
         return 'ABSENT';
       case 'cancelled':

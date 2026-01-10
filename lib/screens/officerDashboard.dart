@@ -9,6 +9,7 @@ import '../models/Notification.dart';
 import 'ManageProfile/userProfilePage.dart';
 import 'ManageActivity/officer/officerActivityList.dart';
 import 'ManageActivity/officer/assignActivity.dart';
+import 'ManagePayment/payment_page.dart';
 
 Future<void> _markAllOfficerNotificationsRead(String officerId) async {
   try {
@@ -152,7 +153,9 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     const Center(child: Text('Preachers')),
     // index 3 - reports (placeholder)
     const Center(child: Text('Reports')),
-    // index 4 - profile
+    // index 4 - payment
+    const PaymentPage(),
+    // index 5 - profile
     const UserProfilePage(),
   ];
 
@@ -300,6 +303,11 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
               icon: Icon(Icons.assessment_outlined),
               activeIcon: Icon(Icons.assessment),
               label: 'Reports',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.payment),
+              activeIcon: Icon(Icons.payment),
+              label: 'Payment',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
