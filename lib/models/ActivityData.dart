@@ -16,24 +16,20 @@ class ActivityData {
   final double locationLng;
   final String createdBy;
   final DateTime createdAt;
-  final String status;
+  String status;
+  // Explanation & review metadata
+  String? explanationReason;
+  String? explanationDetails;
+  String? explanationProofUrl;
+  DateTime? explanationTimestamp;
+  String? explanationManualLocation;
+  String? officerDecision; // approved_attended | reject_absent | cancelled
+  DateTime? officerDecisionTimestamp;
   
   // Additional fields for display
   String? preacherName;
   String? officerName;
   ActivityAssignment? assignment;
-
-  // Optional embedded submission fields (if you choose to store submission on the activity doc)
-  int? submissionId;
-  int? submissionAssignmentId;
-  String? submissionPreacherId;
-  double? submissionGpsLat;
-  double? submissionGpsLng;
-  DateTime? submissionGpsTimestamp;
-  String? submissionAttendance;
-  String? submissionRemarks;
-  String? submissionAttachmentUrl;
-  DateTime? submissionSubmittedAt;
 
   ActivityData({
     required this.docId,
@@ -69,18 +65,15 @@ class ActivityData {
       'created_by': createdBy,
       'created_at': Timestamp.fromDate(createdAt),
       'status': status,
+      if (explanationReason != null) 'explanation_reason': explanationReason,
+      if (explanationDetails != null) 'explanation_details': explanationDetails,
+      if (explanationProofUrl != null) 'explanation_proof_url': explanationProofUrl,
+      if (explanationTimestamp != null) 'explanation_timestamp': Timestamp.fromDate(explanationTimestamp!),
+      if (explanationManualLocation != null) 'explanation_manual_location': explanationManualLocation,
+      if (officerDecision != null) 'officer_decision': officerDecision,
+      if (officerDecisionTimestamp != null) 'officer_decision_timestamp': Timestamp.fromDate(officerDecisionTimestamp!),
       if (preacherName != null) 'preacher_name': preacherName,
       if (officerName != null) 'officer_name': officerName,
-      if (submissionId != null) 'submission_id': submissionId,
-      if (submissionAssignmentId != null) 'submission_assignment_id': submissionAssignmentId,
-      if (submissionPreacherId != null) 'submission_preacher_id': submissionPreacherId,
-      if (submissionGpsLat != null) 'submission_gps_latitude': submissionGpsLat,
-      if (submissionGpsLng != null) 'submission_gps_longitude': submissionGpsLng,
-      if (submissionGpsTimestamp != null) 'submission_gps_timestamp': Timestamp.fromDate(submissionGpsTimestamp!),
-      if (submissionAttendance != null) 'submission_attendance': submissionAttendance,
-      if (submissionRemarks != null) 'submission_remarks': submissionRemarks,
-      if (submissionAttachmentUrl != null) 'submission_attachment_url': submissionAttachmentUrl,
-      if (submissionSubmittedAt != null) 'submission_submitted_at': Timestamp.fromDate(submissionSubmittedAt!),
     };
   }
 
@@ -103,20 +96,15 @@ class ActivityData {
       createdAt: (data['created_at'] as Timestamp?)?.toDate() ?? DateTime.now(),
       status: data['status'] ?? '',
     );
+    activity.explanationReason = data['explanation_reason'] as String?;
+    activity.explanationDetails = data['explanation_details'] as String?;
+    activity.explanationProofUrl = data['explanation_proof_url'] as String?;
+    activity.explanationTimestamp = (data['explanation_timestamp'] as Timestamp?)?.toDate();
+    activity.explanationManualLocation = data['explanation_manual_location'] as String?;
+    activity.officerDecision = data['officer_decision'] as String?;
+    activity.officerDecisionTimestamp = (data['officer_decision_timestamp'] as Timestamp?)?.toDate();
     activity.preacherName = data['preacher_name'] as String?;
     activity.officerName = data['officer_name'] as String?;
-    activity.submissionId = data['submission_id'] as int?;
-    activity.submissionAssignmentId = data['submission_assignment_id'] as int?;
-    activity.submissionPreacherId = data['submission_preacher_id'] as String?;
-    final subLat = data['submission_gps_latitude'];
-    if (subLat != null) activity.submissionGpsLat = (subLat as num).toDouble();
-    final subLng = data['submission_gps_longitude'];
-    if (subLng != null) activity.submissionGpsLng = (subLng as num).toDouble();
-    activity.submissionGpsTimestamp = (data['submission_gps_timestamp'] as Timestamp?)?.toDate();
-    activity.submissionAttendance = data['submission_attendance'] as String?;
-    activity.submissionRemarks = data['submission_remarks'] as String?;
-    activity.submissionAttachmentUrl = data['submission_attachment_url'] as String?;
-    activity.submissionSubmittedAt = (data['submission_submitted_at'] as Timestamp?)?.toDate();
     return activity;
   }
 

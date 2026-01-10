@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import '../models/ActivityData.dart';
-import '../providers/ActvitiyController.dart';
+import '../providers/ActivityController.dart';
 import '../providers/Login/LoginController.dart';
 import 'ManageActivity/admin/adminActivityList.dart';
 import 'ManagePreacher/PreacherManagementPage.dart';
@@ -122,10 +122,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   List<ActivityData> _recentSubmissions(List<ActivityData> activities) {
-    final submissions = activities.where((a) => a.submissionSubmittedAt != null || (a.status.toLowerCase() == 'pending')).toList();
+    final submissions = activities.where((a) => a.status.toLowerCase() == 'pending_report_review').toList();
     submissions.sort((a, b) {
-      final aDate = (a.submissionSubmittedAt ?? _parseDate(a.activityDate)) ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final bDate = (b.submissionSubmittedAt ?? _parseDate(b.activityDate)) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final aDate = _parseDate(a.activityDate) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = _parseDate(b.activityDate) ?? DateTime.fromMillisecondsSinceEpoch(0);
       return bDate.compareTo(aDate);
     });
     return submissions.take(6).toList();
@@ -212,7 +212,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ],
       ),
       body: StreamBuilder<List<ActivityData>>(
-        stream: _activityController.activitiesStream(),
+        stream: _activityController.allActivitiesStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -222,17 +222,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
           }
 
           final activities = snapshot.data ?? [];
-          final filteredActivities = _applyFilters(activities);
-          final recentSubmissions = _recentSubmissions(activities);
+          
+          // Calculate counts from ALL activities (not filtered by time)
           final openCount = activities
               .where((a) {
                 final s = a.status.toLowerCase();
-                return s == 'pending' || s == 'assigned' || s == 'checked_in';
+                return s == 'assigned' || s == 'checked_in' || s == 'pending_report';
               })
               .length;
           final submissionCount = activities
-              .where((a) => a.submissionSubmittedAt != null || a.status.toLowerCase() == 'pending')
+              .where((a) => a.status.toLowerCase() == 'pending_report_review')
               .length;
+          
+          final recentSubmissions = _recentSubmissions(activities);
 
           return RefreshIndicator(
             onRefresh: () async {},
@@ -262,46 +264,41 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       },
                     ),
                     const SizedBox(height: 16),
+                    
+                    // Quick access button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const AdminActivityList()),
+                          );
+                        },
+                        icon: const Icon(Icons.list_alt),
+                        label: const Text('View All Activities'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: scheme.primary,
+                          foregroundColor: scheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     _SearchAndFilters(
                       scheme: scheme,
-                      initialQuery: _searchQuery,
                       initialFilter: _timeFilter,
-                      onQueryChanged: (value) => setState(() => _searchQuery = value),
                       onFilterChanged: (value) => setState(() => _timeFilter = value),
                     ),
                     const SizedBox(height: 18),
-                    _SectionHeader(
-                      title: 'Upcoming Activities',
-                      actionLabel: 'See all',
-                      onActionTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const AdminActivityList()),
-                        );
-                      },
+                    _UpcomingActivitiesSection(
+                      activities: activities,
+                      timeFilter: _timeFilter,
+                      scheme: scheme,
                     ),
-                    const SizedBox(height: 8),
-                    if (filteredActivities.isEmpty)
-                      _EmptyStateCard(
-                        icon: Icons.event_busy,
-                        message: 'No activities match the current filters.',
-                        scheme: scheme,
-                      )
-                    else
-                      Column(
-                        children: filteredActivities.take(4).map((activity) {
-                          final parsedDate = _parseDate(activity.activityDate);
-                          return _ActivityCard(
-                            scheme: scheme,
-                            title: activity.title,
-                            subtitle: activity.locationName,
-                            dateText: parsedDate != null ? _formatDate(parsedDate) : activity.activityDate,
-                            timeText: '${activity.startTime} - ${activity.endTime}',
-                            status: activity.status,
-                            badgeText: activity.topic.isNotEmpty ? activity.topic : 'Activity',
-                          );
-                        }).toList(),
-                      ),
                     const SizedBox(height: 24),
                     _SectionHeader(
                       title: 'Recent Activity Submissions',
@@ -323,13 +320,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     else
                       Column(
                         children: recentSubmissions.map((activity) {
-                          final submittedDate = activity.submissionSubmittedAt ?? _parseDate(activity.activityDate);
+                          final activityDate = _parseDate(activity.activityDate);
                           return _SubmissionCard(
                             scheme: scheme,
                             activityTitle: activity.title,
                             preacher: activity.preacherName ?? 'Preacher pending',
                             badge: activity.status,
-                            submittedText: submittedDate != null ? _formatDate(submittedDate) : 'Unscheduled',
+                            submittedText: activityDate != null ? _formatDate(activityDate) : 'Unscheduled',
                             location: activity.locationName,
                             status: activity.status,
                           );
@@ -540,16 +537,12 @@ class _StatPill extends StatelessWidget {
 class _SearchAndFilters extends StatelessWidget {
   const _SearchAndFilters({
     required this.scheme,
-    required this.initialQuery,
     required this.initialFilter,
-    required this.onQueryChanged,
     required this.onFilterChanged,
   });
 
   final ColorScheme scheme;
-  final String initialQuery;
   final String initialFilter;
-  final ValueChanged<String> onQueryChanged;
   final ValueChanged<String> onFilterChanged;
 
   @override
@@ -557,24 +550,6 @@ class _SearchAndFilters extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
-          decoration: InputDecoration(
-            hintText: 'Search by preacher, topic, or location...',
-            prefixIcon: Icon(Icons.search, color: scheme.primary),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(vertical: 14),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: scheme.outlineVariant),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: scheme.outlineVariant),
-            ),
-          ),
-          onChanged: onQueryChanged,
-        ),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -939,6 +914,125 @@ class _EmptyStateCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _UpcomingActivitiesSection extends StatefulWidget {
+  const _UpcomingActivitiesSection({
+    required this.activities,
+    required this.timeFilter,
+    required this.scheme,
+  });
+
+  final List<ActivityData> activities;
+  final String timeFilter;
+  final ColorScheme scheme;
+
+  @override
+  State<_UpcomingActivitiesSection> createState() => _UpcomingActivitiesSectionState();
+}
+
+class _UpcomingActivitiesSectionState extends State<_UpcomingActivitiesSection> {
+  DateTime? _parseDate(String dateStr) {
+    try {
+      if (dateStr.contains('/')) {
+        final parts = dateStr.split('/');
+        return DateTime(
+          int.parse(parts[2]),
+          int.parse(parts[1]),
+          int.parse(parts[0]),
+        );
+      } else {
+        final parts = dateStr.split('-');
+        return DateTime(
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+          int.parse(parts[2]),
+        );
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return '';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    
+    final upcomingActivities = widget.activities.where((a) {
+      final parsed = _parseDate(a.activityDate);
+      if (parsed == null) return false;
+      
+      // Must be today or future
+      if (parsed.isBefore(todayStart)) return false;
+      
+      // Apply time filter
+      switch (widget.timeFilter) {
+        case 'today':
+          return parsed.year == now.year && 
+                 parsed.month == now.month && 
+                 parsed.day == now.day;
+        case 'week':
+          final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+          final endOfWeek = startOfWeek.add(const Duration(days: 6));
+          return !parsed.isBefore(startOfWeek) && !parsed.isAfter(endOfWeek);
+        case 'month':
+          return parsed.year == now.year && parsed.month == now.month;
+        default:
+          return true;
+      }
+    }).toList();
+    
+    upcomingActivities.sort((a, b) {
+      final aDate = _parseDate(a.activityDate) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = _parseDate(b.activityDate) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return aDate.compareTo(bDate);
+    });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(
+          title: 'Upcoming Activities',
+          actionLabel: 'See all',
+          onActionTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AdminActivityList()),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        if (upcomingActivities.isEmpty)
+          _EmptyStateCard(
+            icon: Icons.event_busy,
+            message: 'No upcoming activities scheduled.',
+            scheme: widget.scheme,
+          )
+        else
+          Column(
+            children: upcomingActivities.take(4).map((activity) {
+              final parsedDate = _parseDate(activity.activityDate);
+              return _ActivityCard(
+                scheme: widget.scheme,
+                title: activity.title,
+                subtitle: activity.locationName,
+                dateText: parsedDate != null ? _formatDate(parsedDate) : activity.activityDate,
+                timeText: '${activity.startTime} - ${activity.endTime}',
+                status: activity.status,
+                badgeText: activity.topic.isNotEmpty ? activity.topic : 'Activity',
+              );
+            }).toList(),
+          ),
+      ],
     );
   }
 }

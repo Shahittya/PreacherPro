@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home_screen.dart';
 import '../models/ActivityData.dart';
 import '../models/Notification.dart';
-import '../providers/ActvitiyController.dart';
+import '../providers/ActivityController.dart';
 import '../providers/Login/LoginController.dart';
 import 'ManageProfile/userProfilePage.dart';
 import 'ManageActivity/preacher/actvitiyList.dart';
@@ -19,19 +19,17 @@ class PreacherDashboard extends StatefulWidget {
 class _PreacherDashboardState extends State<PreacherDashboard> {
   int _selectedIndex = 0;
   final ActivityController _activityController = ActivityController();
+  String? _activityFilterStatus;
 
-  final List<Widget> _pages = [
-    // index 0 - dashboard
-    const _DashboardBody(),
-    // index 1 - activities
-    const ActivityList(),
-    // index 2 - preachers (placeholder)
-    const Center(child: Text('Preachers')),
-    // index 3 - reports (placeholder)
-    const Center(child: Text('Reports')),
-    // index 4 - profile
-    const UserProfilePage(),
-  ];
+  List<Widget> _buildPages() {
+    return [
+      _DashboardBody(onQuickNavigate: _handleQuickNavigate),
+      ActivityList(initialStatus: _activityFilterStatus),
+      const Center(child: Text('Preachers')),
+      const Center(child: Text('Reports')),
+      const UserProfilePage(),
+    ];
+  }
 
   Future<void> _logout(BuildContext context) async {
     final controller = LoginController();
@@ -82,6 +80,92 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
     });
   }
 
+  void _handleQuickNavigate(String status) {
+    setState(() {
+      _activityFilterStatus = status;
+      _selectedIndex = 1; // switch to Activities tab
+    });
+  }
+
+  void _showNotificationsModal(BuildContext context, String uid) async {
+    await _markAllNotificationsRead(uid);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: const [
+                    Text(
+                      'Notifications',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                    ),
+                    Icon(Icons.notifications),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('notifications')
+                      .where('preacher_id', isEqualTo: uid)
+                      .limit(10)
+                      .snapshots(),
+                  builder: (context, snap) {
+                    if (snap.hasError) {
+                      return Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          'Failed to load notifications. ${snap.error}',
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      );
+                    }
+                    if (!snap.hasData) {
+                      return const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    // Filter out officer-only notification types on client side
+                    final items = snap.data!.docs
+                        .map((d) => ActivityNotification.fromDoc(d))
+                        .where((n) => n.type != 'explanation_pending_review' && n.type != 'explanation_submitted')
+                        .toList()
+                      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+                    if (items.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Text('No notifications yet.'),
+                      );
+                    }
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: items.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) => _NotificationItem(items[index]),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildNotificationIcon(User? currentUser) {
     if (currentUser == null) return const SizedBox.shrink();
 
@@ -92,88 +176,21 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
           .where('is_read', isEqualTo: false)
           .snapshots(),
       builder: (context, unreadSnap) {
-        final unreadCount = unreadSnap.hasData ? unreadSnap.data!.docs.length : 0;
+        // Filter out officer-only notification types on client side
+        final unreadCount = unreadSnap.hasData 
+            ? unreadSnap.data!.docs
+                .where((doc) {
+                  final type = doc.get('type') as String?;
+                  return type != 'explanation_pending_review' && type != 'explanation_submitted';
+                })
+                .length
+            : 0;
         return Stack(
           alignment: Alignment.center,
           children: [
             IconButton(
               icon: const Icon(Icons.notifications_none),
-              onPressed: () async {
-                await _markAllNotificationsRead(currentUser.uid);
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.white,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                  ),
-                  builder: (ctx) {
-                    return SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: const [
-                                Text(
-                                  'Notifications',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                ),
-                                Icon(Icons.notifications),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            StreamBuilder<QuerySnapshot>(
-                              stream: FirebaseFirestore.instance
-                                  .collection('notifications')
-                                  .where('preacher_id', isEqualTo: currentUser.uid)
-                                  .limit(10)
-                                  .snapshots(),
-                              builder: (context, snap) {
-                                if (snap.hasError) {
-                                  return Padding(
-                                    padding: const EdgeInsets.all(12),
-                                    child: Text(
-                                      'Failed to load notifications. ${snap.error}',
-                                      style: const TextStyle(color: Colors.red),
-                                    ),
-                                  );
-                                }
-                                if (!snap.hasData) {
-                                  return const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: Center(child: CircularProgressIndicator()),
-                                  );
-                                }
-                                final items = snap.data!.docs
-                                    .map((d) => ActivityNotification.fromDoc(d))
-                                    .toList()
-                                  ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-                                if (items.isEmpty) {
-                                  return const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: Text('No notifications yet.'),
-                                  );
-                                }
-                                return ListView.separated(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: items.length,
-                                  separatorBuilder: (_, __) => const Divider(height: 1),
-                                  itemBuilder: (context, index) => _NotificationItem(items[index]),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
+              onPressed: () => _showNotificationsModal(context, currentUser.uid),
             ),
             if (unreadCount > 0)
               Positioned(
@@ -224,14 +241,14 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
                             .snapshots()
                         : null,
                     builder: (context, snapshot) {
-                      final name = snapshot.hasData && snapshot.data!.exists
-                          ? snapshot.data!.get('fullName') ?? 'Preacher'
-                          : 'Preacher';
+                        final name = snapshot.hasData && snapshot.data!.exists
+                          ? snapshot.data!.get('fullName') ?? ''
+                          : '';
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                          'Assalamualaikum,',
+                          'Welcome,',
                           style: TextStyle(fontSize: 16, color: Colors.white),
                           ),
                           const SizedBox(height: 2),
@@ -260,7 +277,7 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
           : null,
       body: IndexedStack(
         index: _selectedIndex,
-        children: _pages,
+        children: _buildPages(),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -318,7 +335,9 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
 
 // small extracted dashboard body to keep _pages clean
 class _DashboardBody extends StatefulWidget {
-  const _DashboardBody();
+  final void Function(String status) onQuickNavigate;
+
+  const _DashboardBody({required this.onQuickNavigate});
 
   @override
   State<_DashboardBody> createState() => _DashboardBodyState();
@@ -401,11 +420,13 @@ class _DashboardBodyState extends State<_DashboardBody> {
                     a.assignment?.preacherId == currentUser?.uid
                   ).toList();
 
+                  // Count key statuses that preachers need to track
                   final assigned = myActivities.where((a) => a.status == 'assigned').length;
-                  final checkedIn = myActivities.where((a) => a.status == 'checked_in').length;
-                  final pending = myActivities.where((a) => a.status == 'pending').length;
-                  final approved = myActivities.where((a) => a.status == 'approved').length;
-                  final rejected = myActivities.where((a) => a.status == 'rejected').length;
+                  final checkedIn = myActivities.where((a) => a.status == 'checked_in' || a.status == 'pending_report').length;
+                  final pendingOfficerReview = myActivities.where((a) => a.status == 'pending_officer_review').length;
+                  final pendingAbsenceReview = myActivities.where((a) => a.status == 'pending_absence_review').length;
+                  final pendingReportReview = myActivities.where((a) => a.status == 'pending_report_review').length;
+                  final checkInMissed = myActivities.where((a) => a.status == 'check_in_missed').length;
                   final total = myActivities.length;
 
                   return Column(
@@ -424,17 +445,15 @@ class _DashboardBodyState extends State<_DashboardBody> {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            _StatCard('Total Assigned', total, Colors.white),
+                            _StatCard('Total', total, Colors.white),
                             const SizedBox(width: 10),
-                            _StatCard('Assigned', assigned, Colors.blue.shade300),
+                            _StatCard('To Check-In', assigned, Colors.blue.shade300),
                             const SizedBox(width: 10),
                             _StatCard('Checked-In', checkedIn, Colors.cyan.shade300),
                             const SizedBox(width: 10),
-                            _StatCard('Pending', pending, Colors.orange.shade300),
+                            _StatCard('Under Review', pendingOfficerReview + pendingAbsenceReview + pendingReportReview, Colors.purple.shade300),
                             const SizedBox(width: 10),
-                            _StatCard('Approved', approved, Colors.green.shade300),
-                            const SizedBox(width: 10),
-                            _StatCard('Rejected', rejected, Colors.red.shade300),
+                            _StatCard('Missed', checkInMissed, Colors.deepOrange.shade300),
                           ],
                         ),
                       ),
@@ -477,7 +496,7 @@ class _DashboardBodyState extends State<_DashboardBody> {
                           icon: Icons.location_on,
                           label: 'GPS Check-In',
                           color: Colors.lightGreen,
-                          onTap: () {},
+                          onTap: () => widget.onQuickNavigate('assigned'),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -486,11 +505,13 @@ class _DashboardBodyState extends State<_DashboardBody> {
                           icon: Icons.description,
                           label: 'Submit Report',
                           color: Colors.blue,
-                          onTap: () {},
+                          onTap: () => widget.onQuickNavigate('checked_in'),
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+
                 ],
               ),
             ),
@@ -628,6 +649,7 @@ class _DashboardBodyState extends State<_DashboardBody> {
                           return 6;
                       }
                     }
+                    
                     return getPriority(a.status).compareTo(getPriority(b.status));
                   });
                 }
@@ -650,32 +672,65 @@ class _DashboardBodyState extends State<_DashboardBody> {
             ),
             const SizedBox(height: 6),
             // Notifications & Alerts Section (for current preacher)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Notifications & Alerts',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      // Placeholder: could navigate to a full notifications page
-                    },
-                    child: const Text('See all'),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
-            ),
-            Card(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              color: Colors.grey.shade50,
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: StreamBuilder<QuerySnapshot>(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.lightGreen.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.notifications_active,
+                          color: Colors.lightGreen.shade700,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Notifications & Alerts',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () {
+                          final currentUser = FirebaseAuth.instance.currentUser;
+                          if (currentUser != null) {
+                            final parent = context.findAncestorStateOfType<_PreacherDashboardState>();
+                            parent?._showNotificationsModal(context, currentUser.uid);
+                          }
+                        },
+                        label: const Text('See all'),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  StreamBuilder<QuerySnapshot>(
                 stream: FirebaseAuth.instance.currentUser == null
                     ? null
                     : FirebaseFirestore.instance
@@ -707,28 +762,64 @@ class _DashboardBodyState extends State<_DashboardBody> {
                       child: Center(child: CircularProgressIndicator()),
                     );
                   }
+                  // Filter out officer-only notification types on client side
                   final notifications = snap.data!.docs
                       .map((d) => ActivityNotification.fromDoc(d))
+                      .where((n) => n.type != 'explanation_pending_review' && n.type != 'explanation_submitted')
                       .toList()
                     ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
                   if (notifications.isEmpty) {
-                    return Row(
-                      children: [
-                        Icon(Icons.notifications_off, color: Colors.grey.shade500),
-                        const SizedBox(width: 8),
-                        Text('No notifications yet', style: TextStyle(color: Colors.grey.shade700)),
-                      ],
+                    return Container(
+                      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.notifications_off_outlined,
+                              size: 48,
+                              color: Colors.grey.shade400,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'All caught up!',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'No new notifications at the moment',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
                     );
                   }
                   return ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: notifications.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, __) => Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Colors.grey.shade200,
+                    ),
                     itemBuilder: (context, index) => _NotificationItem(notifications[index]),
                   );
                 },
-                ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 20),
@@ -799,49 +890,69 @@ class _NotificationItem extends StatelessWidget {
       onTap: () {
         // Placeholder for notification tap action
       },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: iconBgColor,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: iconColor.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: Icon(icon, color: iconColor),
+              child: Icon(icon, color: iconColor, size: 22),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     notification.message,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: notification.isRead ? FontWeight.w500 : FontWeight.w600,
+                      color: notification.isRead ?  Colors.black87 : Colors.black87,
+                      height: 1.4,
+                    ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(notification.type.toUpperCase(),
-                            style: TextStyle(
-                              color: Colors.grey.shade800,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            )),
+                      Icon(
+                        Icons.access_time,
+                        size: 13,
+                        color: Colors.grey.shade500,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 4),
                       Text(
                         timeAgo,
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
+                      if (!notification.isRead) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: Colors.lightGreen.shade600,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -903,18 +1014,64 @@ class _ActivityCard extends StatelessWidget {
 
   const _ActivityCard(this.activity);
 
+  String _formatStatus(String? status) {
+    if (status == null || status.isEmpty) return 'Unknown';
+    // Use specific display names for statuses
+    switch (status.toUpperCase()) {
+      case 'ASSIGNED':
+        return 'ASSIGNED';
+      case 'CHECKED_IN':
+      case 'PENDING_REPORT':
+        return 'CHECKED IN';
+      case 'CHECK_IN_MISSED':
+        return 'ATTENDANCE MISSED';
+      case 'PENDING_OFFICER_REVIEW':
+        return 'LATE ATTENDANCE REVIEW';
+      case 'PENDING_ABSENCE_REVIEW':
+        return 'ABSENCE REVIEW';
+      case 'PENDING_REPORT_REVIEW':
+        return 'PENDING REVIEW';
+      case 'APPROVED':
+        return 'APPROVED / COMPLETED';
+      case 'REJECTED':
+        return 'REJECTED (REQUIRES FIX)';
+      case 'ABSENT':
+        return 'ABSENT';
+      case 'CANCELLED':
+        return 'CANCELLED';
+      default:
+        return status
+            .replaceAll('_', ' ')
+            .split(' ')
+            .map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase())
+            .join(' ');
+    }
+  }
+
+// ...existing code...
   Color _getStatusColor(String? status) {
     switch (status?.toLowerCase()) {
       case 'approved':
         return Colors.green;
-      case 'pending':
-        return Colors.amber;
+      case 'checked_in':
+      case 'pending_report':
+        return Colors.cyan;
+      case 'pending_report_review':
+        return Colors.orange.shade700;
+      case 'pending_officer_review':
+        return Colors.purple;
+      case 'pending_absence_review':
+        return Colors.blue;
       case 'rejected':
         return Colors.red;
       case 'assigned':
-        return Colors.orange;
-      case 'checked_in':
-        return Colors.cyan;
+        return Colors.amber.shade700;
+      case 'check_in_missed':
+        return Colors.deepOrange;
+      case 'absent':
+        return Colors.redAccent;
+      case 'cancelled':
+        return Colors.grey.shade600;
       default:
         return Colors.grey;
     }
@@ -1109,10 +1266,11 @@ class _ActivityCard extends StatelessWidget {
   }
 
   Widget _statusChip(String status) {
-    Color bgColor;
+     Color bgColor;
     Color textColor;
     switch (status.toLowerCase()) {
       case 'checked_in':
+      case 'pending_report':
       case 'assigned':
         bgColor = Colors.yellow.shade100;
         textColor = Colors.orange.shade800;
@@ -1121,13 +1279,37 @@ class _ActivityCard extends StatelessWidget {
         bgColor = Colors.green.shade100;
         textColor = Colors.green.shade800;
         break;
-      case 'pending':
+      case 'pending_report_review':
         bgColor = Colors.orange.shade100;
         textColor = Colors.orange.shade900;
+        break;
+      case 'pending_officer_review':
+        bgColor = Colors.purple.shade100;
+        textColor = Colors.purple.shade800;
+        break;
+      case 'pending_absence_review':
+        bgColor = Colors.blue.shade100;
+        textColor = Colors.blue.shade800;
         break;
       case 'rejected':
         bgColor = Colors.red.shade100;
         textColor = Colors.red.shade800;
+        break;
+      case 'check_in_missed':
+        bgColor = Colors.deepOrange.shade100;
+        textColor = Colors.deepOrange.shade800;
+        break;
+      case 'explanation_submitted':
+        bgColor = Colors.blue.shade100;
+        textColor = Colors.blue.shade800;
+        break;
+      case 'absent':
+        bgColor = Colors.red.shade100;
+        textColor = Colors.red.shade900;
+        break;
+      case 'cancelled':
+        bgColor = Colors.grey.shade300;
+        textColor = Colors.grey.shade800;
         break;
       default:
         bgColor = Colors.grey.shade100;
@@ -1140,7 +1322,7 @@ class _ActivityCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        status.toUpperCase(),
+        _formatStatus(status),
         style: TextStyle(
           fontWeight: FontWeight.bold,
           color: textColor,
@@ -1356,7 +1538,7 @@ class _ActivityCard extends StatelessWidget {
           ],
         ),
       ),
-    ),
+      ),
     );
   }
 
@@ -1369,7 +1551,7 @@ class _ActivityCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        status.replaceAll('_', ' ').toUpperCase(),
+        _formatStatus(status),
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w700,
