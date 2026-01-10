@@ -254,6 +254,7 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Payment'),
         bottom: TabBar(
           controller: _tabController,

@@ -242,6 +242,7 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Payment'),
         bottom: TabBar(
           controller: _tabController,

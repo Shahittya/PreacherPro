@@ -20,9 +20,21 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> {
   int _selectedIndex = 0;
-  final ActivityController _activityController = ActivityController();
-  String _searchQuery = '';
-  String _timeFilter = 'today';
+
+  final List<Widget> _pages = [
+    // index 0 - dashboard
+    const _DashboardPage(),
+    // index 1 - preachers
+    const PreacherManagementPage(),
+    // index 2 - requests
+    const RegistrationRequestPage(),
+    // index 3 - add MUIP
+    const OfficerRegisterPage(),
+    // index 4 - payment
+    const MuipAdminPaymentPage(),
+    // index 5 - profile
+    const UserProfilePage(),
+  ];
 
   Future<void> _logout(BuildContext context) async {
     final controller = LoginController();
@@ -47,307 +59,64 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   void _onItemTapped(int index) {
+    if (index == _selectedIndex) return;
     setState(() {
       _selectedIndex = index;
     });
-
-    // Handle navigation based on index
-    switch (index) {
-      case 0: // Home
-        // Already on dashboard, do nothing
-        break;
-      case 1: // Preachers
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const PreacherManagementPage()),
-        ).then((_) => setState(() => _selectedIndex = 0));
-        break;
-      case 2: // Requests
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (context) => const RegistrationRequestPage()),
-        );
-        break;
-      case 3: // Add MUIP
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const OfficerRegisterPage()),
-        );
-        break;
-      case 4: // Payment
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const MuipAdminPaymentPage()),
-        ).then((_) => setState(() => _selectedIndex = 0));
-        break;
-      case 5: // Profile
-              Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const UserProfilePage()),
-        ).then((_) => setState(() => _selectedIndex = 0));
-        break;
-    }
-  }
-
-  List<ActivityData> _applyFilters(List<ActivityData> activities) {
-    final now = DateTime.now();
-
-    bool matchesRange(ActivityData a) {
-      final parsed = _parseDate(a.activityDate);
-      if (parsed == null) return true;
-
-      switch (_timeFilter) {
-        case 'today':
-          return parsed.year == now.year && parsed.month == now.month && parsed.day == now.day;
-        case 'week':
-          final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-          final endOfWeek = startOfWeek.add(const Duration(days: 6));
-          return !parsed.isBefore(startOfWeek) && !parsed.isAfter(endOfWeek);
-        case 'month':
-          return parsed.year == now.year && parsed.month == now.month;
-        default:
-          return true;
-      }
-    }
-
-    bool matchesSearch(ActivityData a) {
-      if (_searchQuery.isEmpty) return true;
-      final q = _searchQuery.toLowerCase();
-      return a.title.toLowerCase().contains(q) ||
-          a.locationName.toLowerCase().contains(q) ||
-          a.topic.toLowerCase().contains(q);
-    }
-
-    final filtered = activities.where((a) => matchesRange(a) && matchesSearch(a)).toList();
-    filtered.sort((a, b) {
-      final aDate = _parseDate(a.activityDate) ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final bDate = _parseDate(b.activityDate) ?? DateTime.fromMillisecondsSinceEpoch(0);
-      return aDate.compareTo(bDate);
-    });
-    return filtered;
-  }
-
-  List<ActivityData> _recentSubmissions(List<ActivityData> activities) {
-    final submissions = activities.where((a) => a.submissionSubmittedAt != null || (a.status.toLowerCase() == 'pending')).toList();
-    submissions.sort((a, b) {
-      final aDate = (a.submissionSubmittedAt ?? _parseDate(a.activityDate)) ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final bDate = (b.submissionSubmittedAt ?? _parseDate(b.activityDate)) ?? DateTime.fromMillisecondsSinceEpoch(0);
-      return bDate.compareTo(aDate);
-    });
-    return submissions.take(6).toList();
-  }
-
-  DateTime? _parseDate(String value) {
-    try {
-      if (value.contains('/')) {
-        final parts = value.split('/');
-        if (parts.length == 3) {
-          final day = int.parse(parts[0]);
-          final month = int.parse(parts[1]);
-          final year = int.parse(parts[2]);
-          return DateTime(year, month, day);
-        }
-      } else if (value.contains('-')) {
-        final parts = value.split('-');
-        if (parts.length == 3) {
-          final year = int.parse(parts[0]);
-          final month = int.parse(parts[1]);
-          final day = int.parse(parts[2]);
-          return DateTime(year, month, day);
-        }
-      }
-    } catch (_) {
-      return null;
-    }
-    return null;
-  }
-
-  String _formatDate(DateTime? date) {
-    if (date == null) return '';
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: scheme.primary,
-        foregroundColor: scheme.onPrimary,
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            const SizedBox(width: 16),
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: scheme.onPrimary.withOpacity(0.12),
-                shape: BoxShape.circle,
+      appBar: _selectedIndex == 0
+          ? AppBar(
+              automaticallyImplyLeading: false,
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              titleSpacing: 0,
+              title: Row(
+                children: [
+                  const SizedBox(width: 16),
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.person, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Welcome back',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                      ),
+                      Text(
+                        'MUIP Admin',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              child: const Icon(Icons.person, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'Welcome back',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_none),
+                  onPressed: () {},
                 ),
-                Text(
-                  'MUIP Admin',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  onPressed: () => _logout(context),
                 ),
               ],
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _logout(context),
-          ),
-        ],
-      ),
-      body: StreamBuilder<List<ActivityData>>(
-        stream: _activityController.activitiesStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final activities = snapshot.data ?? [];
-          final filteredActivities = _applyFilters(activities);
-          final recentSubmissions = _recentSubmissions(activities);
-          final openCount = activities
-              .where((a) {
-                final s = a.status.toLowerCase();
-                return s == 'pending' || s == 'assigned' || s == 'checked_in';
-              })
-              .length;
-          final submissionCount = activities
-              .where((a) => a.submissionSubmittedAt != null || a.status.toLowerCase() == 'pending')
-              .length;
-
-          return RefreshIndicator(
-            onRefresh: () async {},
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Container(
-                color: scheme.surfaceVariant,
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _DashboardHero(
-                      scheme: scheme,
-                      openCount: openCount,
-                      submissionCount: submissionCount,
-                      onOpenTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const AdminActivityList()),
-                        );
-                      },
-                      onSubmissionTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const AdminActivityList()),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    _SearchAndFilters(
-                      scheme: scheme,
-                      initialQuery: _searchQuery,
-                      initialFilter: _timeFilter,
-                      onQueryChanged: (value) => setState(() => _searchQuery = value),
-                      onFilterChanged: (value) => setState(() => _timeFilter = value),
-                    ),
-                    const SizedBox(height: 18),
-                    _SectionHeader(
-                      title: 'Upcoming Activities',
-                      actionLabel: 'See all',
-                      onActionTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const AdminActivityList()),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    if (filteredActivities.isEmpty)
-                      _EmptyStateCard(
-                        icon: Icons.event_busy,
-                        message: 'No activities match the current filters.',
-                        scheme: scheme,
-                      )
-                    else
-                      Column(
-                        children: filteredActivities.take(4).map((activity) {
-                          final parsedDate = _parseDate(activity.activityDate);
-                          return _ActivityCard(
-                            scheme: scheme,
-                            title: activity.title,
-                            subtitle: activity.locationName,
-                            dateText: parsedDate != null ? _formatDate(parsedDate) : activity.activityDate,
-                            timeText: '${activity.startTime} - ${activity.endTime}',
-                            status: activity.status,
-                            badgeText: activity.topic.isNotEmpty ? activity.topic : 'Activity',
-                          );
-                        }).toList(),
-                      ),
-                    const SizedBox(height: 24),
-                    _SectionHeader(
-                      title: 'Recent Activity Submissions',
-                      actionLabel: 'See all',
-                      onActionTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const AdminActivityList()),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    if (recentSubmissions.isEmpty)
-                      _EmptyStateCard(
-                        icon: Icons.outbox,
-                        message: 'No submissions have arrived yet.',
-                        scheme: scheme,
-                      )
-                    else
-                      Column(
-                        children: recentSubmissions.map((activity) {
-                          final submittedDate = activity.submissionSubmittedAt ?? _parseDate(activity.activityDate);
-                          return _SubmissionCard(
-                            scheme: scheme,
-                            activityTitle: activity.title,
-                            preacher: activity.preacherName ?? 'Preacher pending',
-                            badge: activity.status,
-                            submittedText: submittedDate != null ? _formatDate(submittedDate) : 'Unscheduled',
-                            location: activity.locationName,
-                            status: activity.status,
-                          );
-                        }).toList(),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
+            )
+          : null,
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
       ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
@@ -947,6 +716,242 @@ class _EmptyStateCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ============== Dashboard Page ==============
+class _DashboardPage extends StatefulWidget {
+  const _DashboardPage({Key? key}) : super(key: key);
+
+  @override
+  State<_DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<_DashboardPage> {
+  final _activityController = ActivityController();
+  String _searchQuery = '';
+  String _timeFilter = 'all';
+
+  @override
+  void dispose() {
+    _activityController.dispose();
+    super.dispose();
+  }
+
+  List<ActivityData> _applyFilters(List<ActivityData> activities) {
+    final now = DateTime.now();
+
+    bool matchesRange(ActivityData a) {
+      final parsed = _parseDate(a.activityDate);
+      if (parsed == null) return true;
+
+      switch (_timeFilter) {
+        case 'today':
+          return parsed.year == now.year && parsed.month == now.month && parsed.day == now.day;
+        case 'week':
+          final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+          final endOfWeek = startOfWeek.add(const Duration(days: 6));
+          return !parsed.isBefore(startOfWeek) && !parsed.isAfter(endOfWeek);
+        case 'month':
+          return parsed.year == now.year && parsed.month == now.month;
+        default:
+          return true;
+      }
+    }
+
+    bool matchesSearch(ActivityData a) {
+      if (_searchQuery.isEmpty) return true;
+      final q = _searchQuery.toLowerCase();
+      return a.title.toLowerCase().contains(q) ||
+          a.locationName.toLowerCase().contains(q) ||
+          a.topic.toLowerCase().contains(q);
+    }
+
+    final filtered = activities.where((a) => matchesRange(a) && matchesSearch(a)).toList();
+    filtered.sort((a, b) {
+      final aDate = _parseDate(a.activityDate) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = _parseDate(b.activityDate) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return aDate.compareTo(bDate);
+    });
+    return filtered;
+  }
+
+  List<ActivityData> _recentSubmissions(List<ActivityData> activities) {
+    final submissions = activities.where((a) => a.submissionSubmittedAt != null || (a.status.toLowerCase() == 'pending')).toList();
+    submissions.sort((a, b) {
+      final aDate = (a.submissionSubmittedAt ?? _parseDate(a.activityDate)) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = (b.submissionSubmittedAt ?? _parseDate(b.activityDate)) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+    return submissions.take(6).toList();
+  }
+
+  DateTime? _parseDate(String value) {
+    try {
+      if (value.contains('/')) {
+        final parts = value.split('/');
+        if (parts.length == 3) {
+          final day = int.parse(parts[0]);
+          final month = int.parse(parts[1]);
+          final year = int.parse(parts[2]);
+          return DateTime(year, month, day);
+        }
+      } else if (value.contains('-')) {
+        final parts = value.split('-');
+        if (parts.length == 3) {
+          final year = int.parse(parts[0]);
+          final month = int.parse(parts[1]);
+          final day = int.parse(parts[2]);
+          return DateTime(year, month, day);
+        }
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return '';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    
+    return StreamBuilder<List<ActivityData>>(
+      stream: _activityController.activitiesStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        final activities = snapshot.data ?? [];
+        final filteredActivities = _applyFilters(activities);
+        final recentSubmissions = _recentSubmissions(activities);
+        final openCount = activities
+            .where((a) {
+              final s = a.status.toLowerCase();
+              return s == 'pending' || s == 'assigned' || s == 'checked_in';
+            })
+            .length;
+        final submissionCount = activities
+            .where((a) => a.submissionSubmittedAt != null || a.status.toLowerCase() == 'pending')
+            .length;
+
+        return RefreshIndicator(
+          onRefresh: () async {},
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Container(
+              color: scheme.surfaceVariant,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _DashboardHero(
+                    scheme: scheme,
+                    openCount: openCount,
+                    submissionCount: submissionCount,
+                    onOpenTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AdminActivityList()),
+                      );
+                    },
+                    onSubmissionTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AdminActivityList()),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  _SearchAndFilters(
+                    scheme: scheme,
+                    initialQuery: _searchQuery,
+                    initialFilter: _timeFilter,
+                    onQueryChanged: (value) => setState(() => _searchQuery = value),
+                    onFilterChanged: (value) => setState(() => _timeFilter = value),
+                  ),
+                  const SizedBox(height: 18),
+                  _SectionHeader(
+                    title: 'Upcoming Activities',
+                    actionLabel: 'See all',
+                    onActionTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AdminActivityList()),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  if (filteredActivities.isEmpty)
+                    _EmptyStateCard(
+                      icon: Icons.event_busy,
+                      message: 'No activities match the current filters.',
+                      scheme: scheme,
+                    )
+                  else
+                    Column(
+                      children: filteredActivities.take(4).map((activity) {
+                        final parsedDate = _parseDate(activity.activityDate);
+                        return _ActivityCard(
+                          scheme: scheme,
+                          title: activity.title,
+                          subtitle: activity.locationName,
+                          dateText: parsedDate != null ? _formatDate(parsedDate) : activity.activityDate,
+                          timeText: '${activity.startTime} - ${activity.endTime}',
+                          status: activity.status,
+                          badgeText: activity.topic.isNotEmpty ? activity.topic : 'Activity',
+                        );
+                      }).toList(),
+                    ),
+                  const SizedBox(height: 24),
+                  _SectionHeader(
+                    title: 'Recent Activity Submissions',
+                    actionLabel: 'See all',
+                    onActionTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AdminActivityList()),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  if (recentSubmissions.isEmpty)
+                    _EmptyStateCard(
+                      icon: Icons.outbox,
+                      message: 'No submissions have arrived yet.',
+                      scheme: scheme,
+                    )
+                  else
+                    Column(
+                      children: recentSubmissions.map((activity) {
+                        final submittedDate = activity.submissionSubmittedAt ?? _parseDate(activity.activityDate);
+                        return _SubmissionCard(
+                          scheme: scheme,
+                          activityTitle: activity.title,
+                          preacher: activity.preacherName ?? 'Preacher pending',
+                          badge: activity.status,
+                          submittedText: submittedDate != null ? _formatDate(submittedDate) : 'Unscheduled',
+                          location: activity.locationName,
+                          status: activity.status,
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

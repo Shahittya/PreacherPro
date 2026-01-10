@@ -23,6 +23,7 @@ class _PreacherManagementPageState extends State<PreacherManagementPage> {
     return Scaffold(
       backgroundColor: Colors.grey[50], // Light background
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Preachers'),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
