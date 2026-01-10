@@ -8,6 +8,7 @@ import '../providers/ActvitiyController.dart';
 import '../providers/Login/LoginController.dart';
 import 'ManageProfile/userProfilePage.dart';
 import 'ManageActivity/preacher/actvitiyList.dart';
+import 'ManagePayment/preacher_payment_page.dart';
 
 class PreacherDashboard extends StatefulWidget {
   const PreacherDashboard({super.key});
@@ -29,7 +30,9 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
     const Center(child: Text('Preachers')),
     // index 3 - reports (placeholder)
     const Center(child: Text('Reports')),
-    // index 4 - profile
+    // index 4 - payment
+    const PreacherPaymentPage(),
+    // index 5 - profile
     const UserProfilePage(),
   ];
 
@@ -303,6 +306,11 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
               icon: Icon(Icons.assessment_outlined),
               activeIcon: Icon(Icons.assessment),
               label: 'Reports',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.payment),
+              activeIcon: Icon(Icons.payment),
+              label: 'Payment',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
