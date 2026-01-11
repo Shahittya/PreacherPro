@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../providers/Profile&Payment/payment_controller.dart';
 
 class MuipOfficerPaymentPage extends StatelessWidget {
@@ -7,6 +8,8 @@ class MuipOfficerPaymentPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = PaymentController();
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Payment History'),
@@ -15,24 +18,21 @@ class MuipOfficerPaymentPage extends StatelessWidget {
         padding: const EdgeInsets.all(12.0),
         child: ValueListenableBuilder<List<Map<String, dynamic>>>(
           valueListenable: store.pending,
-          builder: (context, pendingList, _) {
-            return ValueListenableBuilder<List<Map<String, dynamic>>>(
-              valueListenable: store.history,
-              builder: (context, historyList, _) {
-                // Combine both lists and filter to show only Approved or Rejected status
-                final allItems = [...pendingList, ...historyList];
-                final filteredList = allItems.where((item) {
-                  final status = (item['status'] ?? '').toLowerCase();
-                  return status == 'approved' || status == 'rejected';
-                }).toList();
-                
-                if (filteredList.isEmpty) {
-                  return const Center(child: Text('No payment history yet'));
-                }
-                return ListView.builder(
-                  itemCount: filteredList.length,
-                  itemBuilder: (context, index) {
-                    final item = filteredList[index];
+          builder: (context, allPayments, _) {
+            // Filter payments to show only those created by this officer
+            final officerPayments = allPayments.where((item) {
+              final officerId = item['officerId']?.toString() ?? '';
+              return officerId == currentUserId;
+            }).toList();
+            
+            if (officerPayments.isEmpty) {
+              return const Center(child: Text('No payment history yet'));
+            }
+            
+            return ListView.builder(
+              itemCount: officerPayments.length,
+              itemBuilder: (context, index) {
+                final item = officerPayments[index];
                 return Container(
                   margin: const EdgeInsets.symmetric(vertical: 8),
                   child: Card(
@@ -74,17 +74,14 @@ class MuipOfficerPaymentPage extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: (item['status'] ?? '').toLowerCase() == 'rejected' 
-                                      ? Colors.red.shade50 
-                                      : Colors.green.shade50,
+                                  color: _getStatusBackgroundColor(item['status'] ?? 'pending'),
                                   borderRadius: BorderRadius.circular(12)
                                 ),
                                 child: Text(
-                                  item['status'] ?? 'Approved',
+                                  _formatStatus(item['status'] ?? 'pending'),
                                   style: TextStyle(
-                                    color: (item['status'] ?? '').toLowerCase() == 'rejected'
-                                        ? Colors.red.shade700
-                                        : Colors.green.shade700
+                                    color: _getStatusColor(item['status'] ?? 'pending'),
+                                    fontWeight: FontWeight.w600,
                                   )
                                 ),
                               ),
@@ -131,8 +128,6 @@ class MuipOfficerPaymentPage extends StatelessWidget {
                       ),
                     ),
                   ),
-                );
-                  },
                 );
               },
             );
@@ -273,5 +268,41 @@ class MuipOfficerPaymentPage extends StatelessWidget {
         );
       },
     );
+  }
+
+  Color _getStatusColor(String status) {
+    final lowerStatus = status.toLowerCase();
+    if (lowerStatus == 'approved') {
+      return Colors.green.shade700;
+    } else if (lowerStatus.contains('rejected')) {
+      return Colors.red.shade700;
+    } else {
+      return Colors.orange.shade700;
+    }
+  }
+
+  Color _getStatusBackgroundColor(String status) {
+    final lowerStatus = status.toLowerCase();
+    if (lowerStatus == 'approved') {
+      return Colors.green.shade50;
+    } else if (lowerStatus.contains('rejected')) {
+      return Colors.red.shade50;
+    } else {
+      return Colors.orange.shade50;
+    }
+  }
+
+  String _formatStatus(String status) {
+    final lowerStatus = status.toLowerCase();
+    if (lowerStatus == 'pending') {
+      return 'Pending Admin';
+    } else if (lowerStatus == 'approved') {
+      return 'Approved';
+    } else if (lowerStatus == 'rejected_by_officer') {
+      return 'Rejected by Officer';
+    } else if (lowerStatus == 'rejected_by_admin') {
+      return 'Rejected by Admin';
+    }
+    return status;
   }
 }
