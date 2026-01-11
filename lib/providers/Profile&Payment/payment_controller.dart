@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../models/ActivityData.dart';
 
 class PaymentController {
   PaymentController._internal() {
-    // Load initial mock data (will be replaced with database later)
-    pending.value = _getInitialPendingPayments();
+    // Initialize empty lists - data will be loaded from Firestore
+    pending.value = [];
     approved.value = [];
     rejected.value = [];
     history.value = [];
 
     // initialize role from current auth session (NOT profile)
     _initRoleListener();
+    
+    // Load approved activities from Firestore
+    _loadApprovedActivities();
   }
 
   static final PaymentController _instance = PaymentController._internal();
   factory PaymentController() => _instance;
 
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
   final ValueNotifier<List<Map<String, dynamic>>> pending = ValueNotifier([]);
   final ValueNotifier<List<Map<String, dynamic>>> history = ValueNotifier([]);
   final ValueNotifier<List<Map<String, dynamic>>> approved = ValueNotifier([]);
@@ -27,46 +33,105 @@ class PaymentController {
   /// Track which Firebase UID the current `role.value` belongs to.
   String? _roleForUid;
 
-  /// Get initial mock payment data (temporary - will be replaced with database)
-  List<Map<String, dynamic>> _getInitialPendingPayments() {
-    return [
-      {
-        'id': 'APP001',
-        'preacher': 'John Doe',
-        'preacherId': 'F-3001',
-        'eventName': 'Friday Sermon',
-        'date': '2025-10-21',
-        'address': 'Central Mosque, Kuantan',
-        'description': 'test 1',
-        'status': 'Submitted',
-        'adminStatus': 'Pending',
-        'viewed': false,
-      },
-      {
-        'id': 'APP002',
-        'preacher': 'Community Talk',
-        'preacherId': 'F-3002',
-        'eventName': 'Community Talk',
-        'date': '2025-10-19',
-        'address': 'Masjid Al-Falah',
-        'description': 'test 2',
-        'status': 'Submitted',
-        'adminStatus': 'Pending',
-        'viewed': false,
-      },
-      {
-        'id': 'APP003',
-        'preacher': 'yousef Talk',
-        'preacherId': 'F-3003',
-        'eventName': 'yousef Talk',
-        'date': '2025-10-19',
-        'address': 'Masjid Al-Falah',
-        'description': 'test 3',
-        'status': 'Submitted',
-        'adminStatus': 'Pending',
-        'viewed': false,
-      }
-    ];
+  /// Load payments from Firestore payments collection
+  Future<void> _loadApprovedActivities() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return;
+
+      debugPrint('🔥 SETTING UP PAYMENTS LISTENER');
+      debugPrint('   Collection: payments');
+      
+      // Listen to all payments in real-time
+      _db.collection('payments')
+          .snapshots()
+          .listen((snapshot) {
+        debugPrint('📡 PAYMENTS SNAPSHOT RECEIVED');
+        debugPrint('   Document count: ${snapshot.docs.length}');
+        
+        final payments = <Map<String, dynamic>>[];
+        
+        for (var doc in snapshot.docs) {
+          debugPrint('   📄 Payment doc: ${doc.id}');
+          final data = doc.data();
+          payments.add({
+            'id': doc.id,
+            'paymentId': doc.id,
+            'docId': doc.id,
+            'activityId': data['activityId'] ?? '',
+            'preacher': data['preacherName'] ?? 'Unknown',
+            'preacherId': data['preacherId'] ?? '',
+            'eventName': data['eventName'] ?? '',
+            'date': data['eventDate'] ?? '',
+            'address': data['address'] ?? '',
+            'description': data['description'] ?? '',
+            'topic': data['topic'] ?? '',
+            'status': data['status'] ?? 'pending',
+            'adminStatus': data['status'] ?? 'pending', // Map status to adminStatus for compatibility
+            'viewed': false,
+            'amount': data['amount'] ?? 0.00,
+            'currency': data['currency'] ?? 'RM',
+            'requestedDate': data['requestedDate'],
+            'approvedDate': data['approvedDate'],
+            'rejectedDate': data['rejectedDate'],
+            'officerId': data['officerId'] ?? '',
+            'adminId': data['adminId'] ?? '',
+          });
+        }
+        
+        debugPrint('✅ Loaded ${payments.length} payments into pending.value');
+        pending.value = payments;
+      });
+    } catch (e) {
+      debugPrint('❌ Error loading payments: $e');
+    }
+  }
+
+  /// Create a payment document when officer approves an activity
+  Future<void> createPayment({
+    required String activityId,
+    required String preacherId,
+    required String preacherName,
+    required String eventName,
+    required String eventDate,
+    required String address,
+    required String description,
+    required String topic,
+    required String status, // 'pending' or 'rejected_by_officer'
+    required String officerId,
+    double? amount,
+  }) async {
+    try {
+      debugPrint('🔥 CREATING PAYMENT DOCUMENT IN FIRESTORE');
+      debugPrint('   Collection: payments');
+      debugPrint('   Activity ID: $activityId');
+      debugPrint('   Preacher: $preacherName (ID: $preacherId)');
+      debugPrint('   Status: $status');
+      debugPrint('   Amount: ${amount ?? 0.00}');
+      
+      final docRef = await _db.collection('payments').add({
+        'activityId': activityId,
+        'preacherId': preacherId,
+        'preacherName': preacherName,
+        'eventName': eventName,
+        'eventDate': eventDate,
+        'address': address,
+        'description': description,
+        'topic': topic,
+        'amount': amount ?? 0.00,
+        'currency': 'RM',
+        'status': status,
+        'requestedDate': FieldValue.serverTimestamp(),
+        'officerId': officerId,
+      });
+      
+      debugPrint('✅ PAYMENT CREATED SUCCESSFULLY!');
+      debugPrint('   Document ID: ${docRef.id}');
+      debugPrint('   Path: payments/${docRef.id}');
+    } catch (e) {
+      debugPrint('❌ ERROR CREATING PAYMENT: $e');
+      debugPrint('   Full error: ${e.toString()}');
+    }
   }
 
   void _initRoleListener() {
@@ -185,9 +250,6 @@ class PaymentController {
     if (!item.containsKey('adminStatus')) {
       item['adminStatus'] = 'Pending';
     }
-    if (reason.isNotEmpty) {
-      item['rejectionReason'] = reason;
-    }
 
     // Add to both history and rejected lists
     final newHistory = List<Map<String, dynamic>>.from(history.value);
@@ -208,30 +270,18 @@ class PaymentController {
     history.value = newHistory;
   }
 
-  /// Admin-specific approve method - updates adminStatus field
-  void adminApproveById(String itemId) {
-    // Find item across all lists by ID
-    Map<String, dynamic>? foundItem;
-    
-    for (var item in [...pending.value, ...approved.value, ...rejected.value, ...history.value]) {
-      if (item['id'] == itemId) {
-        foundItem = Map<String, dynamic>.from(item);
-        break;
-      }
+  /// Admin-specific approve method - updates payment status in Firestore
+  Future<void> adminApproveById(String paymentId) async {
+    try {
+      await _db.collection('payments').doc(paymentId).update({
+        'status': 'approved',
+        'approvedDate': FieldValue.serverTimestamp(),
+        'adminId': FirebaseAuth.instance.currentUser?.uid ?? '',
+      });
+      debugPrint('Payment approved by admin: $paymentId');
+    } catch (e) {
+      debugPrint('Error approving payment: $e');
     }
-    
-    if (foundItem == null) return;
-    
-    // Update adminStatus
-    foundItem['adminStatus'] = 'Approved';
-    
-    // Remove from all existing lists
-    _removeItemById(itemId);
-    
-    // Add only to history list (single source)
-    final newHistory = List<Map<String, dynamic>>.from(history.value);
-    newHistory.insert(0, foundItem);
-    history.value = newHistory;
   }
   
   /// Helper to remove item by ID from all lists
@@ -242,32 +292,17 @@ class PaymentController {
     history.value = history.value.where((item) => item['id'] != itemId).toList();
   }
 
-  /// Admin-specific reject method - updates adminStatus field
-  void adminRejectById(String itemId, {String reason = ''}) {
-    // Find item across all lists by ID
-    Map<String, dynamic>? foundItem;
-    
-    for (var item in [...pending.value, ...approved.value, ...rejected.value, ...history.value]) {
-      if (item['id'] == itemId) {
-        foundItem = Map<String, dynamic>.from(item);
-        break;
-      }
+  /// Admin-specific reject method - updates payment status in Firestore
+  Future<void> adminRejectById(String paymentId) async {
+    try {
+      await _db.collection('payments').doc(paymentId).update({
+        'status': 'rejected_by_admin',
+        'rejectedDate': FieldValue.serverTimestamp(),
+        'adminId': FirebaseAuth.instance.currentUser?.uid ?? '',
+      });
+      debugPrint('Payment rejected by admin: $paymentId');
+    } catch (e) {
+      debugPrint('Error rejecting payment: $e');
     }
-    
-    if (foundItem == null) return;
-    
-    // Update adminStatus
-    foundItem['adminStatus'] = 'Rejected';
-    if (reason.isNotEmpty) {
-      foundItem['adminRejectionReason'] = reason;
-    }
-    
-    // Remove from all existing lists
-    _removeItemById(itemId);
-    
-    // Add only to history list (single source)
-    final newHistory = List<Map<String, dynamic>>.from(history.value);
-    newHistory.insert(0, foundItem);
-    history.value = newHistory;
   }
 }
