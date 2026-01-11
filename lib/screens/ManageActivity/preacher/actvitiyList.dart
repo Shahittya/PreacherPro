@@ -1,15 +1,23 @@
+import 'dart:typed_data';
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../models/ActivityData.dart';
 import '../../../models/ActivityAssignment.dart';
-import '../../../providers/ActvitiyController.dart';
+import '../../../providers/ActivityController.dart';
 import 'submit_report.dart';
 import 'editSubmission.dart';
+import 'viewReport.dart';
 
 class ActivityList extends StatefulWidget {
-  const ActivityList({super.key});
+  final String? initialStatus;
+
+  const ActivityList({super.key, this.initialStatus});
 
   @override
   State<ActivityList> createState() => _ActivityListState();
@@ -20,6 +28,25 @@ class _ActivityListState extends State<ActivityList> {
   String searchText = '';
   String selectedStatus = 'All';
   DateTime? selectedDate;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialStatus != null) {
+      selectedStatus = widget.initialStatus!;
+    }
+  }
+
+
+  @override
+  void didUpdateWidget(covariant ActivityList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialStatus != oldWidget.initialStatus && widget.initialStatus != null) {
+      setState(() {
+        selectedStatus = widget.initialStatus!;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +76,7 @@ class _ActivityListState extends State<ActivityList> {
       ),
 
       body: Column(
-        children: [
+        children: [          
           // Search and filter row
             Padding(
               padding: const EdgeInsets.all(16),
@@ -150,7 +177,15 @@ class _ActivityListState extends State<ActivityList> {
                 }
                 // Filter by status
                 if (selectedStatus != 'All') {
-                  activities = activities.where((a) => a.status.toLowerCase() == selectedStatus).toList();
+                  if (selectedStatus == 'checked_in') {
+                    // Show both checked_in and pending_report when checked_in filter is selected
+                    activities = activities.where((a) => 
+                      a.status.toLowerCase() == 'checked_in' || 
+                      a.status.toLowerCase() == 'pending_report'
+                    ).toList();
+                  } else {
+                    activities = activities.where((a) => a.status.toLowerCase() == selectedStatus).toList();
+                  }
                 }
                 // Filter by date (supports both D/M/YYYY and YYYY-MM-DD)
                 if (selectedDate != null) {
@@ -291,11 +326,7 @@ class _ActivityListState extends State<ActivityList> {
                                           borderRadius: BorderRadius.circular(12),
                                         ),
                                       ),
-                                      child: Text(
-                                        a.status.toLowerCase() == 'pending'
-                                            ? 'View Submission'
-                                            : 'View Details',
-                                      ),
+                                      child: const Text('View Details'),
                                     ),
                                   ),
                                 ],
@@ -315,15 +346,34 @@ class _ActivityListState extends State<ActivityList> {
     );
   }
 
+  String _formatStatus(String? status) {
+    if (status == null || status.isEmpty) return 'Unknown';
+    return status
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((word) => word[0].toUpperCase() + word.substring(1).toUpperCase())
+        .join(' ');
+  }
+
   Color _statusBgColor(String? status) {
     switch ((status ?? '').toUpperCase()) {
       case "CHECKED_IN":
+      case "PENDING_REPORT":
+      case "PENDING_REPORT_REVIEW":
       case "ASSIGNED":
         return Colors.yellow.shade100;
+      case "CHECK_IN_MISSED":
+        return Colors.red.shade50;
+      case "PENDING_ABSENCE_REVIEW":
+        return Colors.blue.shade50;
+      case "PENDING_OFFICER_REVIEW":
+        return Colors.purple.shade50;
+      case "ABSENT":
+        return Colors.red.shade100;
+      case "CANCELLED":
+        return Colors.grey.shade300;
       case "APPROVED":
         return Colors.green.shade100;
-      case "PENDING":
-        return Colors.orange.shade100;
       case "REJECTED":
         return Colors.red.shade100;
       default:
@@ -334,16 +384,56 @@ class _ActivityListState extends State<ActivityList> {
   Color _statusTextColor(String? status) {
     switch ((status ?? '').toUpperCase()) {
       case "CHECKED_IN":
+      case "PENDING_REPORT":
+      case "PENDING_REPORT_REVIEW":
       case "ASSIGNED":
         return Colors.orange.shade800;
+      case "CHECK_IN_MISSED":
+        return Colors.red.shade800;
+      case "PENDING_ABSENCE_REVIEW":
+        return Colors.blue.shade800;
+      case "PENDING_OFFICER_REVIEW":
+        return Colors.purple.shade800;
+      case "ABSENT":
+        return Colors.red.shade700;
+      case "CANCELLED":
+        return Colors.grey.shade800;
       case "APPROVED":
         return Colors.green.shade800;
-      case "PENDING":
-        return Colors.orange.shade900;
       case "REJECTED":
         return Colors.red.shade800;
       default:
         return Colors.grey.shade700;
+    }
+  }
+
+  String _getStatusDisplayName(String status) {
+    switch (status.toLowerCase()) {
+      case 'all':
+        return 'All Activities';
+      case 'assigned':
+        return 'ASSIGNED';
+      case 'checked_in':
+      case 'pending_report':
+        return 'CHECKED IN';
+      case 'check_in_missed':
+        return 'ATTENDANCE MISSED';
+      case 'pending_officer_review':
+        return 'LATE ATTENDANCE REVIEW';
+      case 'pending_absence_review':
+        return 'ABSENCE REVIEW';
+      case 'pending_report_review':
+        return 'PENDING REVIEW';
+      case 'approved':
+        return 'APPROVED / COMPLETED';
+      case 'rejected':
+        return 'REJECTED (REQUIRES FIX)';
+      case 'absent':
+        return 'ABSENT';
+      case 'cancelled':
+        return 'CANCELLED';
+      default:
+        return _formatStatus(status);
     }
   }
 
@@ -452,6 +542,36 @@ Widget _infoRow(IconData icon, String text) {
                   ],
                 ),
 
+                // Show "View Report" button if status is pending_report_review/approved/rejected
+                if (a.status.toLowerCase() == "pending_report_review" || a.status.toLowerCase() == "approved" || a.status.toLowerCase() == "rejected") ...[
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ViewReportScreen(activity: a),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.description_outlined),
+                      label: const Text(
+                        "View Report",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange.shade700,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(44),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                ],
+
                 const SizedBox(height: 20),
 
                 // 📍 ACTION BUTTONS
@@ -500,8 +620,70 @@ Widget _infoRow(IconData icon, String text) {
                   ),
                 ],
 
-                // If the activity is already checked in → allow submit report
-                if (a.status.toLowerCase() == "checked_in") ...[
+                // NO SHOW → ask for explanation or mark absent
+                if (a.status.toLowerCase() == "check_in_missed") ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: Colors.red.shade700),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'CHECK-IN MISSED – Action Required',
+                            style: TextStyle(color: Colors.red.shade900, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _showExplanationDialog(a, isLate: true);
+                    },
+                    icon: const Icon(Icons.fact_check),
+                    label: const Text('Submit Explanation'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade700,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(46),
+                    ),
+                  ),
+                ],
+
+                // If explanation already submitted
+                if (a.status.toLowerCase() == "explanation_submitted") ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.pending_actions, color: Colors.blue.shade700),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Explanation submitted. Awaiting officer review.',
+                            style: TextStyle(color: Colors.blue.shade900, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                // If the activity is checked in or awaiting report submission → allow submit report
+                if (a.status.toLowerCase() == "checked_in" || a.status.toLowerCase() == "pending_report") ...[
                   ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pop(context);
@@ -605,7 +787,7 @@ Widget _statusChip(String status) {
       borderRadius: BorderRadius.circular(20),
     ),
     child: Text(
-      status.toUpperCase(),
+      _getStatusDisplayName(status),
       style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.bold,
@@ -632,6 +814,428 @@ Widget _gpsVerifiedBadge() {
           style: TextStyle(
             color: Colors.green.shade700,
             fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildSubmissionDetails(ActivityData activity) {
+  return FutureBuilder<QuerySnapshot>(
+    future: FirebaseFirestore.instance
+        .collection('activity_submissions')
+        .where('assignment_id', isEqualTo: activity.assignment?.assignmentId)
+        .limit(1)
+        .get(),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade50,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation(Colors.orange.shade700),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Loading submission details...',
+                style: TextStyle(color: Colors.orange.shade800, fontSize: 13),
+              ),
+            ],
+          ),
+        );
+      }
+
+      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        return const SizedBox.shrink();
+      }
+
+      final submissionDoc = snapshot.data!.docs.first;
+      final data = submissionDoc.data() as Map<String, dynamic>;
+
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.orange.shade50, Colors.orange.shade100.withOpacity(0.3)],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.orange.shade300, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with Edit Button
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.orange.shade200, Colors.orange.shade100],
+                ),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.orange.withOpacity(0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(Icons.assignment_turned_in, color: Colors.orange.shade800, size: 24),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Submitted Report',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange.shade900,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(Icons.schedule, size: 14, color: Colors.orange.shade700),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Awaiting officer review',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.orange.shade700,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Edit Submission Button
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _navigateToEditSubmission(context, activity);
+                    },
+                    icon: const Icon(Icons.edit, size: 18),
+                    label: const Text('Edit Submission'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade700,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(44),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Outcome & Attendance with improved design
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _submissionDetailTile(
+                          Icons.task_alt,
+                          'Outcome',
+                          data['outcome'] ?? 'N/A',
+                          Colors.blue,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _submissionDetailTile(
+                          Icons.people,
+                          'Attendance',
+                          data['attendance']?.toString() ?? 'N/A',
+                          Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 12),
+                  
+                  // Time Details
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _submissionDetailTile(
+                          Icons.access_time,
+                          'Start Time',
+                          data['actual_start_time'] ?? 'N/A',
+                          Colors.purple,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _submissionDetailTile(
+                          Icons.schedule,
+                          'End Time',
+                          data['actual_end_time'] ?? 'N/A',
+                          Colors.purple,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  if (data['remarks'] != null && data['remarks'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    _submissionTextDetail(
+                      Icons.note_alt,
+                      'Remarks',
+                      data['remarks'],
+                      Colors.indigo,
+                    ),
+                  ],
+                  
+                  if (data['incident_notes'] != null && data['incident_notes'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    _submissionTextDetail(
+                      Icons.warning_amber_rounded,
+                      'Incident Notes',
+                      data['incident_notes'],
+                      Colors.deepOrange,
+                    ),
+                  ],
+                  
+                  if (data['feedback_suggestions'] != null && data['feedback_suggestions'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    _submissionTextDetail(
+                      Icons.feedback_outlined,
+                      'Feedback & Suggestions',
+                      data['feedback_suggestions'],
+                      Colors.teal,
+                    ),
+                  ],
+                  
+                  if (data['photo_base64'] != null && data['photo_base64'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.photo_camera, size: 16, color: Colors.grey.shade700),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Photo Proof',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey.shade800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade300, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.memory(
+                              base64Decode(data['photo_base64']),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.broken_image_outlined, color: Colors.grey.shade400, size: 48),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Failed to load image',
+                                        style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+Widget _submissionDetailTile(IconData icon, String label, String value, Color color) {
+  return Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+      boxShadow: [
+        BoxShadow(
+          color: color.withOpacity(0.08),
+          blurRadius: 4,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 16, color: color),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _submissionTextDetail(IconData icon, String label, String value, Color color) {
+  return Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+      boxShadow: [
+        BoxShadow(
+          color: color.withOpacity(0.08),
+          blurRadius: 4,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 18, color: color),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                color: color,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Colors.black87,
+              height: 1.4,
+            ),
           ),
         ),
       ],
@@ -670,14 +1274,459 @@ void _navigateToReportForm(BuildContext context, ActivityData a) {
   );
 }
 
-void _navigateToEditSubmission(BuildContext context, ActivityData a) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => EditSubmissionScreen(activity: a),
-    ),
-  );
+void _navigateToEditSubmission(BuildContext context, ActivityData a) async {
+  try {
+    // Fetch the submission data for this activity
+    final submissionDoc = await FirebaseFirestore.instance
+        .collection('activity_submissions')
+        .where('activity_id', isEqualTo: a.activityId)
+        .limit(1)
+        .get();
+
+    if (!mounted) return;
+
+    if (submissionDoc.docs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No submission found for this activity')),
+      );
+      return;
+    }
+
+    final submissionData = submissionDoc.docs.first.data();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditSubmissionScreen(
+          activity: a,
+          submissionData: submissionData,
+        ),
+      ),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error loading submission: $e')),
+    );
+  }
 }
+
+  Future<void> _showExplanationDialog(ActivityData activity, {bool isLate = false}) async {
+    final absenceReasons = ['Emergency', 'Medical', 'Travel', 'Forgot', 'Miscommunication', 'Other'];
+    final checkInReasons = ['Late Check-In'];
+    String selectedReason = isLate ? 'Late Check-In' : absenceReasons.first;
+    final detailsController = TextEditingController();
+    XFile? proofImage;
+    Uint8List? proofPreview;
+    bool isUploading = false;
+
+    Future<String> uploadProofAsBase64(XFile file) async {
+      try {
+        // Validate file exists
+        final filePath = file.path;
+        final fileExists = await File(filePath).exists();
+        if (!fileExists) {
+          throw Exception('Selected file no longer exists');
+        }
+
+        // Read bytes with timeout
+        final bytes = await file.readAsBytes().timeout(
+          const Duration(seconds: 30),
+          onTimeout: () => throw Exception('File read timeout'),
+        );
+
+        if (bytes.isEmpty) {
+          throw Exception('File is empty');
+        }
+
+        // Check file size (Firestore has 1MB limit per field, keep under 500KB to be safe)
+        if (bytes.length > 500000) {
+          throw Exception('Image too large (${(bytes.length / 1024 / 1024).toStringAsFixed(2)}MB). Keep images under 500KB.');
+        }
+
+        // Convert to Base64
+        final base64String = base64Encode(bytes);
+        
+        print('📸 Image size: ${(bytes.length / 1024).toStringAsFixed(2)}KB');
+        print('📊 Base64 size: ${(base64String.length / 1024).toStringAsFixed(2)}KB');
+        
+        return base64String;
+      } catch (e) {
+        print('Upload Proof Error: $e');
+        rethrow;
+      }
+    }
+
+    void pickImage(ImageSource source, StateSetter setModalState) async {
+      final picked = await ImagePicker().pickImage(source: source, imageQuality: 75);
+      if (picked != null) {
+        final bytes = await picked.readAsBytes();
+        setModalState(() {
+          proofImage = picked;
+          proofPreview = bytes;
+        });
+      }
+    }
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final isLateCheckInSelected = selectedReason == 'Late Check-In';
+            return Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 16,
+                      offset: const Offset(0, -2),
+                      color: Colors.black.withOpacity(0.08),
+                    ),
+                  ],
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          const Icon(Icons.fact_check, color: Colors.orange, size: 22),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Submit Explanation',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey.shade900,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        isLateCheckInSelected
+                            ? 'Late check-in requires a photo proof and a short note so the officer can review quickly.'
+                            : 'Share why you could not attend or check in. Keep it clear so the officer can decide faster.',
+                        style: const TextStyle(fontSize: 13, color: Colors.black54),
+                      ),
+                      const SizedBox(height: 16),
+
+                      Text('Reason', style: TextStyle(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ...absenceReasons.map((reason) {
+                            final isSelected = selectedReason == reason;
+                            return ChoiceChip(
+                              label: Text(reason),
+                              selected: isSelected,
+                              selectedColor: Colors.green.shade50,
+                              labelStyle: TextStyle(
+                                color: isSelected ? Colors.green.shade800 : Colors.black87,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              onSelected: (selected) => setModalState(() => selected ? selectedReason = reason : null),
+                            );
+                          }),
+                          ...checkInReasons.map((reason) {
+                            final isSelected = selectedReason == reason;
+                            return ChoiceChip(
+                              label: Text(reason),
+                              selected: isSelected,
+                              selectedColor: Colors.orange.shade50,
+                              labelStyle: TextStyle(
+                                color: isSelected ? Colors.orange.shade800 : Colors.black87,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              onSelected: (selected) => setModalState(() => selected ? selectedReason = reason : null),
+                            );
+                          }),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+                      Text('Details', style: TextStyle(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: detailsController,
+                        decoration: InputDecoration(
+                          hintText: 'Explain what happened... (required)',
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        maxLines: 4,
+                      ),
+
+                      if (isLateCheckInSelected) ...[
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            const Icon(Icons.photo_camera_back_outlined, color: Colors.orange, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Photo Proof (required for late check-in)',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.orange.shade800),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.orange.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  ElevatedButton.icon(
+                                    onPressed: isUploading ? null : () => pickImage(ImageSource.camera, setModalState),
+                                    icon: const Icon(Icons.photo_camera),
+                                    label: const Text('Camera'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.orange.shade700,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  OutlinedButton.icon(
+                                    onPressed: isUploading ? null : () => pickImage(ImageSource.gallery, setModalState),
+                                    icon: const Icon(Icons.photo_library),
+                                    label: const Text('Gallery'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.orange.shade800,
+                                      side: BorderSide(color: Colors.orange.shade300),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              if (proofPreview != null)
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.memory(
+                                    proofPreview!,
+                                    height: 160,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              if (proofImage == null)
+                                Row(
+                                  children: [
+                                    Icon(Icons.info, color: Colors.orange.shade600, size: 18),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Attach a clear photo that shows you were at the venue.',
+                                        style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: isUploading ? null : () => Navigator.pop(context),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(48),
+                                side: BorderSide(color: Colors.grey.shade400),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: const Text('Cancel'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: isUploading
+                                  ? null
+                                  : () async {
+                                      if (detailsController.text.trim().isEmpty) {
+                                        ScaffoldMessenger.of(this.context).showSnackBar(
+                                          const SnackBar(content: Text('Please provide an explanation')),
+                                        );
+                                        return;
+                                      }
+                                      if (isLateCheckInSelected && proofImage == null) {
+                                        ScaffoldMessenger.of(this.context).showSnackBar(
+                                          const SnackBar(content: Text('Photo proof is required for late check-in')),
+                                        );
+                                        return;
+                                      }
+
+                                      try {
+                                        setModalState(() => isUploading = true);
+                                        String proofUrl = '';
+                                        
+                                        if (isLateCheckInSelected && proofImage != null) {
+                                          try {
+                                            proofUrl = await uploadProofAsBase64(proofImage!);
+                                          } catch (uploadError) {
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('Photo processing failed: $uploadError'),
+                                                  duration: const Duration(seconds: 5),
+                                                ),
+                                              );
+                                            }
+                                            setModalState(() => isUploading = false);
+                                            return;
+                                          }
+                                        }
+
+                                        await controller.submitExplanation(
+                                          activity: activity,
+                                          reason: selectedReason,
+                                          details: detailsController.text.trim(),
+                                          proofUrl: proofUrl,
+                                        );
+                                        if (!mounted) return;
+                                        Navigator.pop(context);
+                                        ScaffoldMessenger.of(this.context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              isLateCheckInSelected
+                                                  ? 'Late check-in submitted for officer review'
+                                                  : 'Explanation submitted for review',
+                                            ),
+                                          ),
+                                        );
+                                      } catch (e) {
+                                        setModalState(() => isUploading = false);
+                                        ScaffoldMessenger.of(this.context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Submit failed: $e'),
+                                            duration: const Duration(seconds: 5),
+                                          ),
+                                        );
+                                      }
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green.shade600,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size.fromHeight(48),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  if (isUploading) ...[
+                                    const SizedBox(
+                                      height: 18,
+                                      width: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    ),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  const Text('Submit'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmMarkAbsent(ActivityData activity) async {
+    final reasonController = TextEditingController();
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Mark as Absent'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('You must provide a reason why you cannot attend:'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Reason (required)',
+                hintText: 'Explain why you cannot attend...',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (reasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please provide a reason')),
+                );
+                return;
+              }
+              Navigator.pop(context, true);
+            },
+            child: const Text('Confirm Absent'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && reasonController.text.trim().isNotEmpty) {
+      await controller.preacherMarkAbsent(activity, reason: reasonController.text.trim());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Marked as absent')),
+      );
+    }
+  }
 
   bool _isCheckInTimeValid(ActivityData activity) {
     try {
@@ -705,15 +1754,48 @@ void _navigateToEditSubmission(BuildContext context, ActivityData a) {
       final activityDay = DateTime(activityDate.year, activityDate.month, activityDate.day);
       if (!today.isAtSameMomentAs(activityDay)) return false;
       
-      // Parse start and end times
-      final startParts = activity.startTime.split(':');
-      final endParts = activity.endTime.split(':');
-      if (startParts.length < 2 || endParts.length < 2) return false;
+      // Parse start and end times (handle both HH:mm and hh:mm AM/PM formats)
+      int startHour = 0, startMinute = 0, endHour = 0, endMinute = 0;
       
-      final startHour = int.parse(startParts[0]);
-      final startMinute = int.parse(startParts[1]);
-      final endHour = int.parse(endParts[0]);
-      final endMinute = int.parse(endParts[1]);
+      // Parse start time
+      String startTimeStr = activity.startTime.trim();
+      if (startTimeStr.contains('AM') || startTimeStr.contains('PM')) {
+        final isAM = startTimeStr.contains('AM');
+        startTimeStr = startTimeStr.replaceAll('AM', '').replaceAll('PM', '').trim();
+        final parts = startTimeStr.split(':');
+        if (parts.length >= 2) {
+          startHour = int.parse(parts[0]);
+          startMinute = int.parse(parts[1]);
+          if (!isAM && startHour != 12) startHour += 12;
+          else if (isAM && startHour == 12) startHour = 0;
+        }
+      } else {
+        final parts = startTimeStr.split(':');
+        if (parts.length >= 2) {
+          startHour = int.parse(parts[0]);
+          startMinute = int.parse(parts[1]);
+        }
+      }
+      
+      // Parse end time
+      String endTimeStr = activity.endTime.trim();
+      if (endTimeStr.contains('AM') || endTimeStr.contains('PM')) {
+        final isAM = endTimeStr.contains('AM');
+        endTimeStr = endTimeStr.replaceAll('AM', '').replaceAll('PM', '').trim();
+        final parts = endTimeStr.split(':');
+        if (parts.length >= 2) {
+          endHour = int.parse(parts[0]);
+          endMinute = int.parse(parts[1]);
+          if (!isAM && endHour != 12) endHour += 12;
+          else if (isAM && endHour == 12) endHour = 0;
+        }
+      } else {
+        final parts = endTimeStr.split(':');
+        if (parts.length >= 2) {
+          endHour = int.parse(parts[0]);
+          endMinute = int.parse(parts[1]);
+        }
+      }
       
       final currentMinutes = now.hour * 60 + now.minute;
       final startMinutes = startHour * 60 + startMinute;
@@ -731,7 +1813,7 @@ void _navigateToEditSubmission(BuildContext context, ActivityData a) {
   
   // GPS check-in: only allow when near assigned location
   Future<void> _checkInGPS(ActivityData activity) async {
-    const allowedMeters = 200.0; // 100-meter radius validation
+    const allowedMeters = 500.0; // 500-meter radius validation
 
     // Get current user ID
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
@@ -816,19 +1898,49 @@ void _navigateToEditSubmission(BuildContext context, ActivityData a) {
       return;
     }
 
-    // 3. TIME WINDOW VALIDATION
-    TimeOfDay? startTime;
-    TimeOfDay? endTime;
+    // 3. TIME WINDOW VALIDATION (with late tracking)
+    int startHour = 0, startMinute = 0, endHour = 0, endMinute = 0;
+    bool isLateCheckIn = false;
     
     try {
-      final startParts = activity.startTime.split(':');
-      if (startParts.length >= 2) {
-        startTime = TimeOfDay(hour: int.parse(startParts[0]), minute: int.parse(startParts[1]));
+      // Parse start time (handle both HH:mm and hh:mm AM/PM formats)
+      String startTimeStr = activity.startTime.trim();
+      if (startTimeStr.contains('AM') || startTimeStr.contains('PM')) {
+        final isAM = startTimeStr.contains('AM');
+        startTimeStr = startTimeStr.replaceAll('AM', '').replaceAll('PM', '').trim();
+        final parts = startTimeStr.split(':');
+        if (parts.length >= 2) {
+          startHour = int.parse(parts[0]);
+          startMinute = int.parse(parts[1]);
+          if (!isAM && startHour != 12) startHour += 12;
+          else if (isAM && startHour == 12) startHour = 0;
+        }
+      } else {
+        final parts = startTimeStr.split(':');
+        if (parts.length >= 2) {
+          startHour = int.parse(parts[0]);
+          startMinute = int.parse(parts[1]);
+        }
       }
       
-      final endParts = activity.endTime.split(':');
-      if (endParts.length >= 2) {
-        endTime = TimeOfDay(hour: int.parse(endParts[0]), minute: int.parse(endParts[1]));
+      // Parse end time
+      String endTimeStr = activity.endTime.trim();
+      if (endTimeStr.contains('AM') || endTimeStr.contains('PM')) {
+        final isAM = endTimeStr.contains('AM');
+        endTimeStr = endTimeStr.replaceAll('AM', '').replaceAll('PM', '').trim();
+        final parts = endTimeStr.split(':');
+        if (parts.length >= 2) {
+          endHour = int.parse(parts[0]);
+          endMinute = int.parse(parts[1]);
+          if (!isAM && endHour != 12) endHour += 12;
+          else if (isAM && endHour == 12) endHour = 0;
+        }
+      } else {
+        final parts = endTimeStr.split(':');
+        if (parts.length >= 2) {
+          endHour = int.parse(parts[0]);
+          endMinute = int.parse(parts[1]);
+        }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -837,28 +1949,33 @@ void _navigateToEditSubmission(BuildContext context, ActivityData a) {
       return;
     }
 
-    if (startTime != null && endTime != null) {
-      final currentTime = TimeOfDay.fromDateTime(now);
-      final currentMinutes = currentTime.hour * 60 + currentTime.minute;
-      final startMinutes = startTime.hour * 60 + startTime.minute;
-      final endMinutes = endTime.hour * 60 + endTime.minute;
-      
-      // Allow check-in up to 1 hour before start time
-      final earliestCheckInMinutes = startMinutes - 60;
-      
-      if (currentMinutes < earliestCheckInMinutes) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Check-in opens 1 hour before activity start time')),
-        );
-        return;
-      }
-      
-      if (currentMinutes > endMinutes) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Check-in closed. Activity time has ended')),
-        );
-        return;
-      }
+    final currentTime = TimeOfDay.fromDateTime(now);
+    final currentMinutes = currentTime.hour * 60 + currentTime.minute;
+    final startMinutes = startHour * 60 + startMinute;
+    final endMinutes = endHour * 60 + endMinute;
+    
+    // Check-in window: 1 hour before start to 1 hour after end
+    final earliestCheckInMinutes = startMinutes - 60;
+    final latestCheckInMinutes = endMinutes + 60;
+    
+    if (currentMinutes < earliestCheckInMinutes) {
+      final minutesUntilWindow = earliestCheckInMinutes - currentMinutes;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Too early! Check-in opens $minutesUntilWindow minutes before start time')),
+      );
+      return;
+    }
+    
+    if (currentMinutes > latestCheckInMinutes) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Check-in window closed (ended 1 hour after activity end time)')),
+      );
+      return;
+    }
+    
+    // Determine if check-in is late (after start time)
+    if (currentMinutes > startMinutes) {
+      isLateCheckIn = true;
     }
 
     // Coordinate validation
@@ -928,6 +2045,7 @@ void _navigateToEditSubmission(BuildContext context, ActivityData a) {
         'gps_longitude': pos.longitude,
         'gps_timestamp': Timestamp.fromDate(now),
         'attendance': 'Present',
+        'check_in_status': isLateCheckIn ? 'late' : 'on_time',
         'remarks': '',
         'attachment_url': '',
         'submitted_at': Timestamp.fromDate(now),
@@ -1057,15 +2175,14 @@ void _navigateToEditSubmission(BuildContext context, ActivityData a) {
     child: DropdownButton<String>(
       value: selectedStatus,
       underline: const SizedBox(),
-      items: ['All', 'assigned', 'checked_in', 'pending', 'approved', 'rejected']
+      items: ['All', 'assigned', 'checked_in', 'pending_report_review', 'approved', 'rejected', 'check_in_missed', 'pending_absence_review', 'pending_officer_review', 'absent', 'cancelled']
           .map((s) => DropdownMenuItem(
                 value: s,
-                child: Text(s),
+                child: Text(_getStatusDisplayName(s)),
               ))
           .toList(),
       onChanged: (v) => setState(() => selectedStatus = v!),
     ),
   );
 }
-
-}
+} 

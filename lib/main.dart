@@ -5,7 +5,7 @@ import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'providers/Profile&Payment/profile_controller.dart';
 import 'providers/PreacherController.dart';
-import 'providers/ActvitiyController.dart';
+import 'providers/ActivityController.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
