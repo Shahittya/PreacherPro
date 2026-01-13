@@ -215,5 +215,256 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
     );
   }
 }
+// Dashboard Body Widget
+class _DashboardBody extends StatefulWidget {
+  const _DashboardBody();
 
-// ... Keep the rest of the _DashboardBody and helper classes from the Incoming version ...
+  @override
+  State<_DashboardBody> createState() => _DashboardBodyState();
+}
+
+class _DashboardBodyState extends State<_DashboardBody> {
+  final ActivityController _activityController = ActivityController();
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    return Container(
+      color: Colors.grey[50],
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Stats Section
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.lightGreen.shade400, Colors.lightGreen.shade600],
+                ),
+              ),
+              child: StreamBuilder<List<ActivityData>>(
+                stream: currentUser == null
+                    ? null
+                    : _activityController.preacherActivitiesStream(currentUser.uid),
+                builder: (context, snapshot) {
+                  if (currentUser == null) return const SizedBox.shrink();
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator(color: Colors.white));
+                  }
+
+                  final myActivities = snapshot.data!.where((a) => 
+                    a.assignment?.preacherId == currentUser.uid
+                  ).toList();
+
+                  final assigned = myActivities.where((a) => a.status == 'assigned').length;
+                  final pending = myActivities.where((a) => a.status == 'pending').length;
+                  final approved = myActivities.where((a) => a.status == 'approved').length;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'My Statistics',
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 16),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildStatCard('Total', myActivities.length),
+                            const SizedBox(width: 10),
+                            _buildStatCard('Assigned', assigned),
+                            const SizedBox(width: 10),
+                            _buildStatCard('Pending', pending),
+                            const SizedBox(width: 10),
+                            _buildStatCard('Approved', approved),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+
+            // Quick Actions
+            Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Quick Actions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildQuickAction(Icons.location_on, 'GPS Check-In', Colors.lightGreen, () {}),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildQuickAction(Icons.description, 'Submit Report', Colors.blue, () {}),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // My Activities Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('My Activities', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                  TextButton(onPressed: () {}, child: const Text('View all')),
+                ],
+              ),
+            ),
+
+            // Activity List
+            StreamBuilder<List<ActivityData>>(
+              stream: currentUser == null
+                  ? null
+                  : _activityController.preacherActivitiesStream(currentUser.uid),
+              builder: (context, snapshot) {
+                if (currentUser == null) return const SizedBox.shrink();
+                if (!snapshot.hasData) {
+                  return const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                final activities = snapshot.data!
+                    .where((a) => a.assignment?.preacherId == currentUser.uid)
+                    .take(5)
+                    .toList();
+
+                if (activities.isEmpty) {
+                  return Container(
+                    margin: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(Icons.inbox, size: 48, color: Colors.grey.shade400),
+                        const SizedBox(height: 12),
+                        const Text('No Activities Yet', style: TextStyle(fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: activities.length,
+                  itemBuilder: (context, index) => _buildActivityCard(activities[index]),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String label, int value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.25)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('$value', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickAction(IconData icon, String label, Color color, VoidCallback onTap) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 26),
+            const SizedBox(height: 6),
+            Text(label, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityCard(ActivityData activity) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        title: Text(activity.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text('${activity.activityDate} • ${activity.locationName}'),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: _getStatusColor(activity.status).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            activity.status.toUpperCase(),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: _getStatusColor(activity.status),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved': return Colors.green;
+      case 'pending': return Colors.orange;
+      case 'rejected': return Colors.red;
+      case 'assigned': return Colors.blue;
+      default: return Colors.grey;
+    }
+  }
+}

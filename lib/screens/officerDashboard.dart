@@ -35,12 +35,10 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   // The IndexedStack keeps the state of pages alive when switching tabs
   final List<Widget> _pages = [
     const _DashboardBody(),              // Index 0
-    const PreacherManagementPage(),      // Index 1 (From Current)
-    const OfficerActivityList(),         // Index 2 (From Incoming)
-    const ManageKPIPage(),               // Index 3 (From Current)
-    const ReportDashboardPage(),         // Index 4 (From Current)
-    const PaymentPage(),                 // Index 5
-    const UserProfilePage(),             // Index 6
+    const OfficerActivityList(),         // Index 1
+    const ManageKPIPage(),               // Index 2
+    const ReportDashboardPage(),         // Index 3
+    const UserProfilePage(),             // Index 4
   ];
 
   void _onItemTapped(int index) {
@@ -99,7 +97,6 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         onTap: _onItemTapped,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.people_outline), label: 'Preachers'),
           BottomNavigationBarItem(icon: Icon(Icons.event_outlined), label: 'Activities'),
           BottomNavigationBarItem(icon: Icon(Icons.trending_up), label: 'KPI'),
           BottomNavigationBarItem(icon: Icon(Icons.assessment_outlined), label: 'Reports'),
