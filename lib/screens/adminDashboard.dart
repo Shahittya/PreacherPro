@@ -5,6 +5,7 @@ import 'Registeration/officerRegisterPage.dart';
 import 'Registeration/registrationRequestPage.dart';
 import 'ManageProfile/userProfilePage.dart';
 import 'ManagePreacher/PreacherManagementPage.dart';
+import 'ManageReport/ReportDashboardPage.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -55,21 +56,27 @@ class _AdminDashboardState extends State<AdminDashboard> {
           MaterialPageRoute(builder: (context) => const PreacherManagementPage()),
         ).then((_) => setState(() => _selectedIndex = 0));
         break;
-      case 2: // Requests
+      case 2: // Reports
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ReportDashboardPage()),
+        ).then((_) => setState(() => _selectedIndex = 0));
+        break;
+      case 3: // Requests
         Navigator.push(
           context,
           MaterialPageRoute(
               builder: (context) => const RegistrationRequestPage()),
         );
         break;
-      case 3: // Add MUIP
+      case 4: // Add MUIP
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const OfficerRegisterPage()),
         );
         break;
-      case 4: // Profile
-              Navigator.push(
+      case 5: // Profile
+        Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const UserProfilePage()),
         ).then((_) => setState(() => _selectedIndex = 0));
@@ -118,6 +125,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Preachers'),
+          BottomNavigationBarItem(icon: Icon(Icons.assessment), label: 'Reports'),
           BottomNavigationBarItem(
             icon: Icon(Icons.notifications),
             label: 'Requests',

@@ -4,6 +4,7 @@ import 'home_screen.dart';
 import '../providers/Login/LoginController.dart';
 import 'Login/loginpage.dart';
 import 'ManageProfile/userProfilePage.dart';
+import 'ManageKPI/MyKPIOverviewPage.dart';
 
 class PreacherDashboard extends StatefulWidget {
   const PreacherDashboard({super.key});
@@ -49,11 +50,13 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
         break;
       case 1: // Activities
         break;
-      case 2: // Preachers
+      case 2: // KPI
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const MyKPIOverviewPage()),
+        ).then((_) => setState(() => _selectedIndex = 0));
         break;
-      case 3: // Reports
-        break;
-      case 4: // Profile
+      case 3: // Profile
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const UserProfilePage()),
@@ -67,7 +70,7 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Preacher Dashboard'),
-        backgroundColor: Colors.lightGreen,
+        backgroundColor: const Color(0xFF7CB342),
         foregroundColor: Colors.white,
         actions: [
           IconButton(
@@ -80,7 +83,7 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.mosque, size: 80, color: Colors.lightGreen),
+            Icon(Icons.mosque, size: 80, color: const Color(0xFF7CB342)),
             const SizedBox(height: 20),
             const Text(
               'Welcome to Preacher Dashboard',
@@ -108,7 +111,7 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
         child: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
           currentIndex: _selectedIndex,
-          selectedItemColor: Colors.lightGreen,
+          selectedItemColor: const Color(0xFF7CB342),
           unselectedItemColor: Colors.grey[600],
           backgroundColor: Colors.white,
           elevation: 0,
@@ -127,14 +130,9 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
               label: 'Activities',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline),
-              activeIcon: Icon(Icons.people),
-              label: 'Preachers',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.assessment_outlined),
-              activeIcon: Icon(Icons.assessment),
-              label: 'Reports',
+              icon: Icon(Icons.trending_up_outlined),
+              activeIcon: Icon(Icons.trending_up),
+              label: 'My KPI',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
