@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../providers/Profile&Payment/payment_controller.dart';
 
 class PreacherPaymentPage extends StatefulWidget {
@@ -11,11 +12,22 @@ class PreacherPaymentPage extends StatefulWidget {
 class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTickerProviderStateMixin {
   final store = PaymentController();
   late TabController _tabController;
+  String? _currentPreacherId;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadCurrentPreacherId();
+  }
+
+  Future<void> _loadCurrentPreacherId() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      setState(() {
+        _currentPreacherId = currentUser.uid;
+      });
+    }
   }
 
   @override
@@ -53,16 +65,8 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
   }
 
   Widget _buildPaymentCard(Map<String, dynamic> item, bool showViewButton) {
-    // For preacher: show rejection from either officer (status) or admin (adminStatus)
-    final status = item['status'] ?? '';
-    final adminStatus = item['adminStatus'] ?? '';
-    
-    // Priority: show rejection if either rejected, otherwise show adminStatus
-    final displayStatus = status.toLowerCase() == 'rejected' 
-        ? status 
-        : (adminStatus.toLowerCase() == 'rejected' 
-            ? adminStatus 
-            : (adminStatus.isNotEmpty ? adminStatus : 'Pending'));
+    // Display payment status from payments collection
+    final displayStatus = item['status'] ?? 'Pending';
     
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -168,59 +172,36 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
   }
 
   List<Map<String, dynamic>> _getPendingPayments() {
-    // Combine all sources and filter by adminStatus='pending' BUT exclude any rejections
-    final allItems = [...store.pending.value, ...store.approved.value, ...store.rejected.value, ...store.history.value];
-    final filtered = allItems.where((item) {
-      final adminStatus = (item['adminStatus'] ?? 'pending').toLowerCase();
-      final status = (item['status'] ?? '').toLowerCase();
-      // Show only if adminStatus is pending AND neither status nor adminStatus is rejected
-      return adminStatus == 'pending' && status != 'rejected' && adminStatus != 'rejected';
-    }).toList();
+    if (_currentPreacherId == null) return [];
     
-    // Deduplicate by ID
-    final seen = <String>{};
-    return filtered.where((item) {
-      final id = item['id']?.toString() ?? '';
-      if (seen.contains(id)) return false;
-      seen.add(id);
-      return true;
+    // Filter only for current preacher's pending payments
+    return store.pending.value.where((item) {
+      final preacherId = item['preacherId']?.toString() ?? '';
+      final status = (item['status'] ?? '').toLowerCase();
+      return preacherId == _currentPreacherId && status == 'pending';
     }).toList();
   }
 
   List<Map<String, dynamic>> _getApprovedPayments() {
-    // Combine all sources and filter by adminStatus='approved' (final admin decision)
-    final allItems = [...store.pending.value, ...store.approved.value, ...store.rejected.value, ...store.history.value];
-    final filtered = allItems.where((item) => 
-      (item['adminStatus'] ?? '').toLowerCase() == 'approved'
-    ).toList();
+    if (_currentPreacherId == null) return [];
     
-    // Deduplicate by ID
-    final seen = <String>{};
-    return filtered.where((item) {
-      final id = item['id']?.toString() ?? '';
-      if (seen.contains(id)) return false;
-      seen.add(id);
-      return true;
+    // Filter only for current preacher's approved payments
+    return store.pending.value.where((item) {
+      final preacherId = item['preacherId']?.toString() ?? '';
+      final status = (item['status'] ?? '').toLowerCase();
+      return preacherId == _currentPreacherId && status == 'approved';
     }).toList();
   }
 
   List<Map<String, dynamic>> _getRejectedPayments() {
-    // Combine all sources and filter by status='rejected' OR adminStatus='rejected'
-    final allItems = [...store.pending.value, ...store.approved.value, ...store.rejected.value, ...store.history.value];
-    final filtered = allItems.where((item) {
-      final status = (item['status'] ?? '').toLowerCase();
-      final adminStatus = (item['adminStatus'] ?? '').toLowerCase();
-      // Show if either officer or admin rejected
-      return status == 'rejected' || adminStatus == 'rejected';
-    }).toList();
+    if (_currentPreacherId == null) return [];
     
-    // Deduplicate by ID
-    final seen = <String>{};
-    return filtered.where((item) {
-      final id = item['id']?.toString() ?? '';
-      if (seen.contains(id)) return false;
-      seen.add(id);
-      return true;
+    // Filter only for current preacher's rejected payments
+    return store.pending.value.where((item) {
+      final preacherId = item['preacherId']?.toString() ?? '';
+      final status = (item['status'] ?? '').toLowerCase();
+      return preacherId == _currentPreacherId && 
+             (status == 'rejected_by_officer' || status == 'rejected_by_admin');
     }).toList();
   }
 
@@ -268,28 +249,13 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
       body: ValueListenableBuilder<List<Map<String, dynamic>>>(
         valueListenable: store.pending,
         builder: (context, _, __) {
-          return ValueListenableBuilder<List<Map<String, dynamic>>>(
-            valueListenable: store.approved,
-            builder: (context, __, ___) {
-              return ValueListenableBuilder<List<Map<String, dynamic>>>(
-                valueListenable: store.rejected,
-                builder: (context, ___, ____) {
-                  return ValueListenableBuilder<List<Map<String, dynamic>>>(
-                    valueListenable: store.history,
-                    builder: (context, ____, _____) {
-                      return TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildTabContent(_getPendingPayments(), 'No pending payments'),
-                          _buildTabContent(_getApprovedPayments(), 'No approved payments'),
-                          _buildTabContent(_getRejectedPayments(), 'No rejected payments'),
-                        ],
-                      );
-                    },
-                  );
-                },
-              );
-            },
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _buildTabContent(_getPendingPayments(), 'No pending payments'),
+              _buildTabContent(_getApprovedPayments(), 'No approved payments'),
+              _buildTabContent(_getRejectedPayments(), 'No rejected payments'),
+            ],
           );
         },
       ),
@@ -297,16 +263,8 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
   }
 
   void _showDetailModal(BuildContext context, Map<String, dynamic> item) {
-    // For preacher: show rejection from either officer (status) or admin (adminStatus)
-    final status = item['status'] ?? '';
-    final adminStatus = item['adminStatus'] ?? '';
-    
-    // Priority: show rejection if either rejected, otherwise show adminStatus
-    final displayStatus = status.toLowerCase() == 'rejected' 
-        ? status 
-        : (adminStatus.toLowerCase() == 'rejected' 
-            ? adminStatus 
-            : (adminStatus.isNotEmpty ? adminStatus : 'Pending'));
+    // Display payment status from payments collection
+    final displayStatus = item['status'] ?? 'Pending';
     
     showModalBottomSheet(
       context: context,

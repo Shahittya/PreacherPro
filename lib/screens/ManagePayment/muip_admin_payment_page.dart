@@ -160,55 +160,24 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
   }
 
   List<Map<String, dynamic>> _getPendingPayments() {
-    // Admin pending tab shows items approved by officer (status='approved') but not yet processed by admin (adminStatus='pending')
-    final allItems = [...store.pending.value, ...store.approved.value, ...store.rejected.value, ...store.history.value];
-    final filtered = allItems.where((item) {
-      final status = (item['status'] ?? '').toLowerCase();
-      final adminStatus = (item['adminStatus'] ?? 'pending').toLowerCase();
-      return status == 'approved' && adminStatus == 'pending';
-    }).toList();
-    
-    // Deduplicate by ID
-    final seen = <String>{};
-    return filtered.where((item) {
-      final id = item['id']?.toString() ?? '';
-      if (seen.contains(id)) return false;
-      seen.add(id);
-      return true;
-    }).toList();
+    // Admin pending tab shows payments with status='pending'
+    return store.pending.value.where((item) => 
+      (item['status'] ?? '').toLowerCase() == 'pending'
+    ).toList();
   }
 
   List<Map<String, dynamic>> _getApprovedPayments() {
-    // Admin approved tab shows items approved by admin (adminStatus='approved')
-    final allItems = [...store.pending.value, ...store.approved.value, ...store.rejected.value, ...store.history.value];
-    final filtered = allItems.where((item) => 
-      (item['adminStatus'] ?? '').toLowerCase() == 'approved'
+    // Admin approved tab shows payments with status='approved'
+    return store.pending.value.where((item) => 
+      (item['status'] ?? '').toLowerCase() == 'approved'
     ).toList();
-    
-    // Deduplicate by ID
-    final seen = <String>{};
-    return filtered.where((item) {
-      final id = item['id']?.toString() ?? '';
-      if (seen.contains(id)) return false;
-      seen.add(id);
-      return true;
-    }).toList();
   }
 
   List<Map<String, dynamic>> _getRejectedPayments() {
-    // Admin rejected tab shows items rejected by admin (adminStatus='rejected')
-    final allItems = [...store.pending.value, ...store.approved.value, ...store.rejected.value, ...store.history.value];
-    final filtered = allItems.where((item) => 
-      (item['adminStatus'] ?? '').toLowerCase() == 'rejected'
-    ).toList();
-    
-    // Deduplicate by ID
-    final seen = <String>{};
-    return filtered.where((item) {
-      final id = item['id']?.toString() ?? '';
-      if (seen.contains(id)) return false;
-      seen.add(id);
-      return true;
+    // Admin rejected tab shows payments with status='rejected_by_officer' or 'rejected_by_admin'
+    return store.pending.value.where((item) {
+      final status = (item['status'] ?? '').toLowerCase();
+      return status == 'rejected_by_officer' || status == 'rejected_by_admin';
     }).toList();
   }
 
@@ -256,28 +225,13 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
       body: ValueListenableBuilder<List<Map<String, dynamic>>>(
         valueListenable: store.pending,
         builder: (context, _, __) {
-          return ValueListenableBuilder<List<Map<String, dynamic>>>(
-            valueListenable: store.approved,
-            builder: (context, __, ___) {
-              return ValueListenableBuilder<List<Map<String, dynamic>>>(
-                valueListenable: store.rejected,
-                builder: (context, ___, ____) {
-                  return ValueListenableBuilder<List<Map<String, dynamic>>>(
-                    valueListenable: store.history,
-                    builder: (context, ____, _____) {
-                      return TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildTabContent(_getPendingPayments(), 'No pending payments'),
-                          _buildTabContent(_getApprovedPayments(), 'No approved payments'),
-                          _buildTabContent(_getRejectedPayments(), 'No rejected payments'),
-                        ],
-                      );
-                    },
-                  );
-                },
-              );
-            },
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _buildTabContent(_getPendingPayments(), 'No pending payments'),
+              _buildTabContent(_getApprovedPayments(), 'No approved payments'),
+              _buildTabContent(_getRejectedPayments(), 'No rejected payments'),
+            ],
           );
         },
       ),
@@ -285,13 +239,12 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
   }
 
   void _showDetailModal(BuildContext context, Map<String, dynamic> item) {
-    // Check if this is a pending payment for admin (officer approved but admin hasn't processed yet)
+    // Check if this is a pending payment (status='pending')
     final status = (item['status'] ?? '').toLowerCase();
-    final adminStatus = (item['adminStatus'] ?? 'pending').toLowerCase();
-    final isPending = status == 'approved' && adminStatus == 'pending';
+    final isPending = status == 'pending';
     
-    // For admin modal, display adminStatus
-    final displayStatus = item['adminStatus'] ?? 'Pending';
+    // For admin modal, display the payment status
+    final displayStatus = item['status'] ?? 'Pending';
     
     showModalBottomSheet(
       context: context,
@@ -474,9 +427,9 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
   }
 
   void _handleApprove(Map<String, dynamic> item) {
-    final itemId = item['id']?.toString();
+    final paymentId = item['id']?.toString();
     
-    if (itemId == null || itemId.isEmpty) {
+    if (paymentId == null || paymentId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Invalid payment ID'),
@@ -486,7 +439,7 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
       return;
     }
 
-    store.adminApproveById(itemId);
+    store.adminApproveById(paymentId);
     
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -497,9 +450,9 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
   }
 
   void _handleReject(Map<String, dynamic> item) {
-    final itemId = item['id']?.toString();
+    final paymentId = item['id']?.toString();
     
-    if (itemId == null || itemId.isEmpty) {
+    if (paymentId == null || paymentId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Invalid payment ID'),
@@ -509,22 +462,13 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
       return;
     }
 
-    // Show rejection reason dialog
-    final reasonController = TextEditingController();
-    
+    // Show confirmation dialog
     showDialog(
       context: context,
       builder: (ctx) {
         return AlertDialog(
           title: const Text('Reject Payment'),
-          content: TextField(
-            controller: reasonController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Rejection Reason (Optional)',
-              border: OutlineInputBorder(),
-            ),
-          ),
+          content: const Text('Are you sure you want to reject this payment?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -533,7 +477,7 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
             TextButton(
               onPressed: () {
                 Navigator.pop(ctx);
-                store.adminRejectById(itemId, reason: reasonController.text);
+                store.adminRejectById(paymentId);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Payment rejected'),
@@ -541,6 +485,7 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
                   ),
                 );
               },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
               child: const Text('Reject'),
             ),
           ],
