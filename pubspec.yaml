@@ -45,6 +45,11 @@ dependencies:
   provider: ^6.1.5+1
   device_info_plus: ^10.1.0
 
+  #maps
+
+  google_maps_flutter: ^2.1.1  
+  geolocator: ^9.0.2
+  geocoding: ^2.1.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

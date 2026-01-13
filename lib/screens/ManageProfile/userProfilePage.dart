@@ -35,17 +35,19 @@ class _UserProfilePageState extends State<UserProfilePage> {
     return Consumer<ProfileController>(
       builder: (context, profileController, child) {
         final Color themeColor = profileController.getRoleColor();
+        // Only show back button for admin (admin pushes profile page, officer/preacher use tabs)
+        final bool isAdmin = profileController.role.toUpperCase() == 'ADMIN';
         
         return Scaffold(
           backgroundColor: Colors.grey[100],
           appBar: AppBar(
+            automaticallyImplyLeading: false,
             title: const Text('Profile'),
             backgroundColor: themeColor,
             foregroundColor: Colors.white,
             elevation: 0,
           ),
           body: _buildBody(profileController, themeColor),
-
         );
       },
     );

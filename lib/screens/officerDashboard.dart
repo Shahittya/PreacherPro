@@ -1,10 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home_screen.dart';
+
+// Controllers & Providers
 import '../providers/Login/LoginController.dart';
+import '../providers/ActvitiyController.dart';
 import '../providers/PreacherController.dart';
+
+// Models
+import '../models/ActivityData.dart';
+import '../models/Notification.dart';
 import '../models/PreacherData.dart';
+
+// Pages
 import 'ManageProfile/userProfilePage.dart';
+import 'ManageActivity/officer/officerActivityList.dart';
+import 'ManageActivity/officer/assignActivity.dart';
+import 'ManagePayment/payment_page.dart';
 import 'ManagePreacher/PreacherManagementPage.dart';
 import 'ManageReport/ReportDashboardPage.dart';
 import 'ManageKPI/ManageKPIPage.dart';
@@ -18,31 +31,23 @@ class OfficerDashboard extends StatefulWidget {
 
 class _OfficerDashboardState extends State<OfficerDashboard> {
   int _selectedIndex = 0;
-  
-  // Stats data
-  int _totalPreachers = 0;
-  int _activePreachers = 0;
-  int _pendingTraining = 0;
-  int _monthActivities = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadStats();
-  }
+  // The IndexedStack keeps the state of pages alive when switching tabs
+  final List<Widget> _pages = [
+    const _DashboardBody(),              // Index 0
+    const PreacherManagementPage(),      // Index 1 (From Current)
+    const OfficerActivityList(),         // Index 2 (From Incoming)
+    const ManageKPIPage(),               // Index 3 (From Current)
+    const ReportDashboardPage(),         // Index 4 (From Current)
+    const PaymentPage(),                 // Index 5
+    const UserProfilePage(),             // Index 6
+  ];
 
-  Future<void> _loadStats() async {
-    try {
-      final preachers = await PreacherData.getPreachersStream().first;
-      setState(() {
-        _totalPreachers = preachers.length;
-        _activePreachers = preachers.where((p) => p.status.toLowerCase() == 'active').length;
-        _pendingTraining = preachers.where((p) => p.trainingStatus.toLowerCase() == 'pending').length;
-        _monthActivities = preachers.fold<int>(0, (sum, p) => sum + p.activityCount);
-      });
-    } catch (e) {
-      // Handle error silently
-    }
+  void _onItemTapped(int index) {
+    if (index == _selectedIndex) return;
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -58,439 +63,252 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message']),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text(result['message']), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  void _onItemTapped(int index) {
-    if (index == _selectedIndex) return;
-    
-    setState(() {
-      _selectedIndex = index;
-    });
+  @override
+  Widget build(BuildContext context) {
+    final currentUser = FirebaseAuth.instance.currentUser;
 
-    switch (index) {
-      case 0: // Dashboard
-        break;
-      case 1: // Preachers
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const PreacherManagementPage()),
-        ).then((_) {
-          setState(() => _selectedIndex = 0);
-          _loadStats();
-        });
-        break;
-      case 2: // KPI
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const ManageKPIPage()),
-        ).then((_) => setState(() => _selectedIndex = 0));
-        break;
-      case 3: // Reports
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const ReportDashboardPage()),
-        ).then((_) => setState(() => _selectedIndex = 0));
-        break;
-      case 4: // Profile
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const UserProfilePage()),
-        ).then((_) => setState(() => _selectedIndex = 0));
-        break;
-    }
+    return Scaffold(
+      // Show AppBar only on the Dashboard tab
+      appBar: _selectedIndex == 0
+          ? AppBar(
+              automaticallyImplyLeading: false,
+              backgroundColor: Colors.amber.shade600,
+              foregroundColor: Colors.white,
+              title: _buildAppBarTitle(currentUser),
+              actions: [
+                IconButton(icon: const Icon(Icons.notifications_none), onPressed: () {}),
+                IconButton(icon: const Icon(Icons.logout), onPressed: () => _logout(context)),
+              ],
+            )
+          : null,
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        currentIndex: _selectedIndex,
+        selectedItemColor: Colors.amber.shade700,
+        unselectedItemColor: Colors.grey[600],
+        onTap: _onItemTapped,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.people_outline), label: 'Preachers'),
+          BottomNavigationBarItem(icon: Icon(Icons.event_outlined), label: 'Activities'),
+          BottomNavigationBarItem(icon: Icon(Icons.trending_up), label: 'KPI'),
+          BottomNavigationBarItem(icon: Icon(Icons.assessment_outlined), label: 'Reports'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
+        ],
+      ),
+    );
   }
 
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good morning,';
-    if (hour < 17) return 'Good afternoon,';
-    return 'Good evening,';
+  Widget _buildAppBarTitle(User? user) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: user != null 
+          ? FirebaseFirestore.instance.collection('officers').doc(user.uid).snapshots() 
+          : null,
+      builder: (context, snapshot) {
+        String name = 'Officer';
+        if (snapshot.hasData && snapshot.data!.exists) {
+          name = snapshot.data!.get('fullName') ?? 'Officer';
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Welcome,', style: TextStyle(fontSize: 12)),
+            Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _DashboardBody extends StatefulWidget {
+  const _DashboardBody();
+
+  @override
+  State<_DashboardBody> createState() => _DashboardBodyState();
+}
+
+class _DashboardBodyState extends State<_DashboardBody> {
+  final activityController = ActivityController();
+  int _totalPreachers = 0;
+  int _activePreachers = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreacherStats();
+  }
+
+  Future<void> _loadPreacherStats() async {
+    final preachers = await PreacherData.getPreachersStream().first;
+    if (mounted) {
+      setState(() {
+        _totalPreachers = preachers.length;
+        _activePreachers = preachers.where((p) => p.status.toLowerCase() == 'active').length;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Container(
-                width: double.infinity,
+    return StreamBuilder<List<ActivityData>>(
+      stream: activityController.activitiesStream(),
+      builder: (context, snapshot) {
+        final activities = snapshot.data ?? [];
+        final pendingCount = activities.where((a) => a.status.toLowerCase() == 'pending').length;
+
+        return CustomScrollView(
+          slivers: [
+            // Header with Unified Stats
+            SliverToBoxAdapter(
+              child: Container(
                 padding: const EdgeInsets.all(20),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Color(0xFF7CB342), Color(0xFF9CCC65)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(24),
-                    bottomRight: Radius.circular(24),
+                    colors: [Colors.amber.shade600, Colors.amber.shade700],
                   ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Dashboard',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                              onPressed: () {},
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.logout, color: Colors.white),
-                              onPressed: () => _logout(context),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _getGreeting(),
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const Text(
-                      'MUIP Officers',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                    const Text('Overall Statistics', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 15),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _statCard('Preachers', _totalPreachers),
+                          _statCard('Active', _activePreachers),
+                          _statCard('Pending Reports', pendingCount),
+                          _statCard('Total Activities', activities.length),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
+            ),
 
-              // Stats Cards
-              Padding(
+            // Quick Actions from Current version
+            SliverToBoxAdapter(
+              child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildStatCard(
-                            icon: Icons.people_outline,
-                            iconColor: Colors.blue,
-                            value: '$_totalPreachers',
-                            label: 'Total Preachers',
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildStatCard(
-                            icon: Icons.person_outline,
-                            iconColor: Colors.green,
-                            value: '$_activePreachers',
-                            label: 'Active Preachers',
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildStatCard(
-                            icon: Icons.school_outlined,
-                            iconColor: Colors.orange,
-                            value: '$_pendingTraining',
-                            label: 'Pending Training',
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildStatCard(
-                            icon: Icons.event_note_outlined,
-                            iconColor: Colors.purple,
-                            value: '$_monthActivities',
-                            label: 'This Month Activities',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // Quick Actions
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Quick Actions',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildQuickActionCard(
-                            icon: Icons.person_add_outlined,
-                            iconColor: Colors.blue,
-                            label: 'Add Preacher',
-                            sublabel: 'Register new Preacher',
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => const PreacherManagementPage()),
-                              ).then((_) => _loadStats());
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildQuickActionCard(
-                            icon: Icons.assessment_outlined,
-                            iconColor: Colors.green,
-                            label: 'View Reports',
-                            sublabel: 'Generate activity reports',
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => const ReportDashboardPage()),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
+                    const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
-                    Row(
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 10,
+                      crossAxisSpacing: 10,
+                      childAspectRatio: 1.5,
                       children: [
-                        Expanded(
-                          child: _buildQuickActionCard(
-                            icon: Icons.trending_up,
-                            iconColor: Colors.amber,
-                            label: "Manage Preacher's\nKPI",
-                            sublabel: 'Set Preachers target',
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => const ManageKPIPage()),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildQuickActionCard(
-                            icon: Icons.location_on_outlined,
-                            iconColor: Colors.red,
-                            label: 'GPS Tracking',
-                            sublabel: 'Monitor Location',
-                            onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('GPS Tracking coming soon!'),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
+                        _actionCard(context, Icons.person_add, 'Add Preacher', Colors.blue, () {
+                           // Logic to navigate or open form
+                        }),
+                        _actionCard(context, Icons.assignment_add, 'Assign Activity', Colors.orange, () {
+                           Navigator.push(context, MaterialPageRoute(builder: (_) => const AssignActivityForm()));
+                        }),
+                        _actionCard(context, Icons.trending_up, 'Set KPI', Colors.green, () {
+                           // Trigger KPI logic
+                        }),
+                        _actionCard(context, Icons.location_on, 'GPS Track', Colors.red, () {}),
                       ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 100), // Bottom padding for nav bar
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
+            ),
+
+            // Recent Submissions List from Incoming version
+            if (activities.any((a) => a.status.toLowerCase() == 'pending'))
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Text('Recent Pending Reports', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            
+            SliverPadding(
+              padding: const EdgeInsets.all(16),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final pending = activities.where((a) => a.status.toLowerCase() == 'pending').toList();
+                    if (index >= pending.length) return null;
+                    return _buildReportItem(pending[index]);
+                  },
+                  childCount: activities.where((a) => a.status.toLowerCase() == 'pending').length,
+                ),
+              ),
             ),
           ],
-        ),
-        child: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          currentIndex: _selectedIndex,
-          selectedItemColor: const Color(0xFF7CB342),
-          unselectedItemColor: Colors.grey[600],
-          backgroundColor: Colors.white,
-          elevation: 0,
-          selectedFontSize: 12,
-          unselectedFontSize: 12,
-          onTap: _onItemTapped,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_outlined),
-              activeIcon: Icon(Icons.dashboard),
-              label: 'Dashboard',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline),
-              activeIcon: Icon(Icons.people),
-              label: 'Preachers',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.trending_up_outlined),
-              activeIcon: Icon(Icons.trending_up),
-              label: 'KPI',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.assessment_outlined),
-              activeIcon: Icon(Icons.assessment),
-              label: 'Reports',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profile',
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildStatCard({
-    required IconData icon,
-    required Color iconColor,
-    required String value,
-    required String label,
-  }) {
+  Widget _statCard(String label, int value) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(right: 10),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: iconColor, size: 24),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
+          Text('$value', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
         ],
       ),
     );
   }
 
-  Widget _buildQuickActionCard({
-    required IconData icon,
-    required Color iconColor,
-    required String label,
-    required String sublabel,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
+  Widget _actionCard(BuildContext context, IconData icon, String label, Color color, VoidCallback onTap) {
+    return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [BoxShadow(color: Colors.grey.shade200, blurRadius: 5)],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: iconColor, size: 24),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              sublabel,
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey[600],
-              ),
-            ),
+            Icon(icon, color: color, size: 30),
+            const SizedBox(height: 5),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildReportItem(ActivityData activity) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        title: Text(activity.title),
+        subtitle: Text(activity.preacherName ?? 'Preacher'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () {
+          // Navigate to review report
+        },
       ),
     );
   }
