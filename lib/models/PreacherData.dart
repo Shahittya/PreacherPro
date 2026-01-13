@@ -27,7 +27,7 @@ class PreacherData {
     this.activityCount = 0,
   });
 
-  // Convert from Firebase (Map) to App Object
+  // Convert from Firebase (Map) to App Object (Translator)
   factory PreacherData.fromMap(Map<String, dynamic> data, String id) {
     return PreacherData(
       id: id,

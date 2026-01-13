@@ -6,7 +6,6 @@ class PreacherController extends ChangeNotifier {
   Stream<List<PreacherData>> get preachersStream => PreacherData.getPreachersStream();
 
   // Wrapper methods for CRUD operations
-  
   Future<void> addPreacher(PreacherData preacher) async {
     await PreacherData.addPreacher(preacher);
     notifyListeners(); // Optional if stream updates UI automatically
