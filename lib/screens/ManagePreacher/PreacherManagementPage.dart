@@ -111,16 +111,6 @@ class _PreacherManagementPageState extends State<PreacherManagementPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const EditPreacherForm()),
-          );
-        },
-        backgroundColor: Colors.blue[800],
-        child: const Icon(Icons.add),
-      ),
     );
   }
 

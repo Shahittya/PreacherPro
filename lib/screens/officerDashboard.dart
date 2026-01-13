@@ -37,7 +37,8 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
     const _DashboardBody(),              // Index 0
     const OfficerActivityList(),         // Index 1
     const ManageKPIPage(),               // Index 2
-    const UserProfilePage(),             // Index 3
+    const PaymentPage(),                 // Index 3
+    const UserProfilePage(),             // Index 4
   ];
 
   void _onItemTapped(int index) {
@@ -98,6 +99,7 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
           BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.event_outlined), label: 'Activities'),
           BottomNavigationBarItem(icon: Icon(Icons.trending_up), label: 'KPI'),
+          BottomNavigationBarItem(icon: Icon(Icons.payment_outlined), label: 'Payment'),
           BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
         ],
       ),
