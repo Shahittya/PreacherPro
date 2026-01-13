@@ -5,7 +5,7 @@ import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'providers/Profile&Payment/profile_controller.dart';
 import 'providers/PreacherController.dart';
-import 'providers/ActivityController.dart';
+import 'providers/ActvitiyController.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +22,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => ProfileController()),
         ChangeNotifierProvider(create: (_) => PreacherController()),
+        ChangeNotifierProvider(create: (_) => ReportController()),
         ChangeNotifierProvider(create: (_) => ActivityController()),
       ],
       child: MaterialApp(
