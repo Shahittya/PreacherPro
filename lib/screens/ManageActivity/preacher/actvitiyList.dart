@@ -181,7 +181,8 @@ class _ActivityListState extends State<ActivityList> {
                     // Show both checked_in and pending_report when checked_in filter is selected
                     activities = activities.where((a) => 
                       a.status.toLowerCase() == 'checked_in' || 
-                      a.status.toLowerCase() == 'pending_report'
+                      a.status.toLowerCase() == 'pending_report'||
+                      a.status.toLowerCase() == 'pending'
                     ).toList();
                   } else {
                     activities = activities.where((a) => a.status.toLowerCase() == selectedStatus).toList();
@@ -358,6 +359,7 @@ class _ActivityListState extends State<ActivityList> {
   Color _statusBgColor(String? status) {
     switch ((status ?? '').toUpperCase()) {
       case "CHECKED_IN":
+      case "PENDING":
       case "PENDING_REPORT":
       case "PENDING_REPORT_REVIEW":
       case "ASSIGNED":
@@ -384,6 +386,7 @@ class _ActivityListState extends State<ActivityList> {
   Color _statusTextColor(String? status) {
     switch ((status ?? '').toUpperCase()) {
       case "CHECKED_IN":
+      case "PENDING":
       case "PENDING_REPORT":
       case "PENDING_REPORT_REVIEW":
       case "ASSIGNED":
@@ -683,7 +686,7 @@ Widget _infoRow(IconData icon, String text) {
                 ],
 
                 // If the activity is checked in or awaiting report submission → allow submit report
-                if (a.status.toLowerCase() == "checked_in" || a.status.toLowerCase() == "pending_report") ...[
+                if (a.status.toLowerCase() == "checked_in" || a.status.toLowerCase() == "pending_report" || a.status.toLowerCase() == "pending") ...[
                   ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pop(context);

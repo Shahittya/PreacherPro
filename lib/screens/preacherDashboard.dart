@@ -13,7 +13,7 @@ import '../providers/Login/LoginController.dart';
 import 'ManageProfile/userProfilePage.dart';
 import 'ManageActivity/preacher/actvitiyList.dart';
 import 'ManagePayment/preacher_payment_page.dart';
-import 'ManageKPI/MyKPIOverviewPage.dart'; // From Current
+import 'ManageKPI/MyKPIOverviewPage.dart'; 
 
 class PreacherDashboard extends StatefulWidget {
   const PreacherDashboard({super.key});
@@ -25,21 +25,17 @@ class PreacherDashboard extends StatefulWidget {
 class _PreacherDashboardState extends State<PreacherDashboard> {
   int _selectedIndex = 0;
   final ActivityController _activityController = ActivityController();
+  String? _activityFilterStatus;
 
-  final List<Widget> _pages = [
-    // index 0 - dashboard
-    const _DashboardBody(),
-    // index 1 - activities
-    const ActivityList(),
-    // index 2 - preachers (placeholder)
-    const Center(child: Text('Preachers')),
-    // index 3 - reports (placeholder)
-    const Center(child: Text('Reports')),
-    // index 4 - payment
-    const PreacherPaymentPage(),
-    // index 5 - profile
-    const UserProfilePage(),
-  ];
+  List<Widget> _buildPages() {
+    return [
+      _DashboardBody(onQuickNavigate: _handleQuickNavigate),
+      ActivityList(initialStatus: _activityFilterStatus),
+      const MyKPIOverviewPage(),            
+      const PreacherPaymentPage(),          
+      const UserProfilePage(),  
+    ];
+  }
 
   Future<void> _logout(BuildContext context) async {
     final controller = LoginController();
@@ -54,21 +50,15 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message']), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(result['message']),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
   }
 
-  // Navigation Logic
-  void _onItemTapped(int index) {
-    if (index == _selectedIndex) return;
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
-  // MARK: Notification Logic
   Future<void> _markAllNotificationsRead(String uid) async {
     try {
       final db = FirebaseFirestore.instance;
@@ -84,8 +74,102 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
       }
       await batch.commit();
     } catch (e) {
+      // Soft-fail: keep UI responsive if marking read fails
       debugPrint('Failed to mark notifications read: $e');
     }
+  }
+
+  void _onItemTapped(int index) {
+    if (index == _selectedIndex) return;
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  void _handleQuickNavigate(String status) {
+    setState(() {
+      _activityFilterStatus = status;
+      _selectedIndex = 1; // switch to Activities tab
+    });
+  }
+
+  void _showNotificationsModal(BuildContext context, String uid) async {
+    await _markAllNotificationsRead(uid);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: const [
+                    Text(
+                      'Notifications',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                    ),
+                    Icon(Icons.notifications),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('notifications')
+                      .where('preacher_id', isEqualTo: uid)
+                      .limit(10)
+                      .snapshots(),
+                  builder: (context, snap) {
+                    if (snap.hasError) {
+                      return Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          'Failed to load notifications. ${snap.error}',
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      );
+                    }
+                    if (!snap.hasData) {
+                      return const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    // Filter out officer-only notification types on client side
+                    final items = snap.data!.docs
+                        .map((d) => ActivityNotification.fromDoc(d))
+                        .where((n) => n.type != 'explanation_pending_review' && n.type != 'explanation_submitted')
+                        .toList()
+                      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+                    if (items.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Text('No notifications yet.'),
+                      );
+                    }
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: items.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) => _NotificationItem(items[index]),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildNotificationIcon(User? currentUser) {
@@ -98,88 +182,21 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
           .where('is_read', isEqualTo: false)
           .snapshots(),
       builder: (context, unreadSnap) {
-        final unreadCount = unreadSnap.hasData ? unreadSnap.data!.docs.length : 0;
+        // Filter out officer-only notification types on client side
+        final unreadCount = unreadSnap.hasData 
+            ? unreadSnap.data!.docs
+                .where((doc) {
+                  final type = doc.get('type') as String?;
+                  return type != 'explanation_pending_review' && type != 'explanation_submitted';
+                })
+                .length
+            : 0;
         return Stack(
           alignment: Alignment.center,
           children: [
             IconButton(
               icon: const Icon(Icons.notifications_none),
-              onPressed: () async {
-                await _markAllNotificationsRead(currentUser.uid);
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.white,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                  ),
-                  builder: (ctx) {
-                    return SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: const [
-                                Text(
-                                  'Notifications',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                ),
-                                Icon(Icons.notifications),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            StreamBuilder<QuerySnapshot>(
-                              stream: FirebaseFirestore.instance
-                                  .collection('notifications')
-                                  .where('preacher_id', isEqualTo: currentUser.uid)
-                                  .limit(10)
-                                  .snapshots(),
-                              builder: (context, snap) {
-                                if (snap.hasError) {
-                                  return Padding(
-                                    padding: const EdgeInsets.all(12),
-                                    child: Text(
-                                      'Failed to load notifications. ${snap.error}',
-                                      style: const TextStyle(color: Colors.red),
-                                    ),
-                                  );
-                                }
-                                if (!snap.hasData) {
-                                  return const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: Center(child: CircularProgressIndicator()),
-                                  );
-                                }
-                                final items = snap.data!.docs
-                                    .map((d) => ActivityNotification.fromDoc(d))
-                                    .toList()
-                                  ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-                                if (items.isEmpty) {
-                                  return const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: Text('No notifications yet.'),
-                                  );
-                                }
-                                return ListView.separated(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: items.length,
-                                  separatorBuilder: (_, __) => const Divider(height: 1),
-                                  itemBuilder: (context, index) => _NotificationItem(items[index]),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
+              onPressed: () => _showNotificationsModal(context, currentUser.uid),
             ),
             if (unreadCount > 0)
               Positioned(
@@ -187,7 +204,10 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
                 top: 12,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   child: Text(
                     unreadCount > 9 ? '9+' : unreadCount.toString(),
                     style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
@@ -197,28 +217,6 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
           ],
         );
       },
-    );
-  }
-
-  void _showNotificationSheet(BuildContext context, User currentUser) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Notifications', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              const Divider(),
-              // ... StreamBuilder for notification list (same as incoming code) ...
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -249,14 +247,14 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
                             .snapshots()
                         : null,
                     builder: (context, snapshot) {
-                      final name = snapshot.hasData && snapshot.data!.exists
-                          ? snapshot.data!.get('fullName') ?? 'Preacher'
-                          : 'Preacher';
+                        final name = snapshot.hasData && snapshot.data!.exists
+                          ? snapshot.data!.get('fullName') ?? ''
+                          : '';
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                          'Assalamualaikum,',
+                          'Welcome,',
                           style: TextStyle(fontSize: 16, color: Colors.white),
                           ),
                           const SizedBox(height: 2),
@@ -276,7 +274,10 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
               ),
               actions: [
                 _buildNotificationIcon(currentUser),
-                IconButton(icon: const Icon(Icons.logout), onPressed: () => _logout(context)),
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  onPressed: () => _logout(context),
+                ),
               ],
             )
           : null,
@@ -287,13 +288,23 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, -2))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
         ),
         child: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
           currentIndex: _selectedIndex,
           selectedItemColor: Colors.lightGreen.shade600,
           unselectedItemColor: Colors.grey[600],
+          backgroundColor: Colors.white,
+          elevation: 0,
+          selectedFontSize: 12,
+          unselectedFontSize: 12,
           onTap: _onItemTapped,
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), activeIcon: Icon(Icons.dashboard), label: 'Home'),
@@ -306,34 +317,9 @@ class _PreacherDashboardState extends State<PreacherDashboard> {
       ),
     );
   }
-
-  Widget _buildAppBarTitle(User? currentUser) {
-    return Row(
-      children: [
-        CircleAvatar(
-          radius: 18,
-          backgroundColor: Colors.white.withOpacity(0.25),
-          child: const Icon(Icons.person, color: Colors.white, size: 18),
-        ),
-        const SizedBox(width: 10),
-        StreamBuilder<DocumentSnapshot>(
-          stream: currentUser != null ? FirebaseFirestore.instance.collection('preachers').doc(currentUser.uid).snapshots() : null,
-          builder: (context, snapshot) {
-            final name = snapshot.hasData && snapshot.data!.exists ? snapshot.data!.get('fullName') ?? 'Preacher' : 'Preacher';
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Assalamualaikum,', style: TextStyle(fontSize: 14, color: Colors.white)),
-                Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
-              ],
-            );
-          },
-        ),
-      ],
-    );
-  }
 }
-// Dashboard Body Widget
+
+// small extracted dashboard body to keep _pages clean
 class _DashboardBody extends StatefulWidget {
   final void Function(String status) onQuickNavigate;
 
@@ -345,11 +331,48 @@ class _DashboardBody extends StatefulWidget {
 
 class _DashboardBodyState extends State<_DashboardBody> {
   final ActivityController _activityController = ActivityController();
+  String _timeFilter = 'all';
+
+  DateTime? _safeParseDate(String dateStr) {
+    try {
+      final s = dateStr.trim();
+      if (s.isEmpty) return null;
+      if (s.contains('/')) {
+        final parts = s.split('/');
+        if (parts.length == 3) {
+          final d = int.parse(parts[0]);
+          final m = int.parse(parts[1]);
+          final y = int.parse(parts[2]);
+          return DateTime(y, m, d);
+        }
+      } else if (s.contains('-')) {
+        // Try ISO first (YYYY-MM-DD)
+        try {
+          return DateTime.parse(s);
+        } catch (_) {
+          // Fallback for DD-MM-YYYY
+          final parts = s.split('-');
+          if (parts.length == 3) {
+            final d = int.parse(parts[0]);
+            final m = int.parse(parts[1]);
+            final y = int.parse(parts[2]);
+            return DateTime(y, m, d);
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser;
 
+  void _goToActivitiesTab(BuildContext context) {
+    final parent = context.findAncestorStateOfType<_PreacherDashboardState>();
+    parent?._onItemTapped(1);
+  }
+    final currentUser = FirebaseAuth.instance.currentUser;
+    
     return Container(
       color: Colors.grey[50],
       child: SingleChildScrollView(
@@ -371,46 +394,58 @@ class _DashboardBodyState extends State<_DashboardBody> {
                     ? null
                     : _activityController.preacherActivitiesStream(currentUser.uid),
                 builder: (context, snapshot) {
-                  if (currentUser == null) return const SizedBox.shrink();
+                  if (currentUser == null) {
+                    return const SizedBox.shrink();
+                  }
                   if (!snapshot.hasData) {
                     return const Center(child: CircularProgressIndicator(color: Colors.white));
                   }
 
-                  final myActivities = snapshot.data!.where((a) => 
-                    a.assignment?.preacherId == currentUser.uid
+                  final allActivities = snapshot.data!;
+                  final myActivities = allActivities.where((a) => 
+                    a.assignment?.preacherId == currentUser?.uid
                   ).toList();
 
                   // Count key statuses that preachers need to track
                   final assigned = myActivities.where((a) => a.status == 'assigned').length;
-                  final checkedIn = myActivities.where((a) => a.status == 'checked_in').length;
-                  final pending = myActivities.where((a) => a.status == 'pending').length;
-                  final approved = myActivities.where((a) => a.status == 'approved').length;
-                  final rejected = myActivities.where((a) => a.status == 'rejected').length;
+                  final checkedIn = myActivities.where((a) => a.status == 'checked_in' || a.status == 'pending_report' || a.status == 'pending').length;
+                  final pendingOfficerReview = myActivities.where((a) => a.status == 'pending_officer_review').length;
+                  final pendingAbsenceReview = myActivities.where((a) => a.status == 'pending_absence_review').length;
+                  final pendingReportReview = myActivities.where((a) => a.status == 'pending_report_review').length;
+                  final checkInMissed = myActivities.where((a) => a.status == 'check_in_missed').length;
+                  final completeActivity = myActivities.where((a) => a.status == 'approved').length;
+                  final rejectActivity = myActivities.where((a) => a.status == 'rejected').length;
                   final total = myActivities.length;
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'My Statistics',
-                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                      'My Statistics',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                       ),
                       const SizedBox(height: 16),
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            _StatCard('Total Assigned', total, Colors.white),
+                            _StatCard('Total', total, Colors.white),
                             const SizedBox(width: 10),
-                            _StatCard('Assigned', assigned, Colors.blue.shade300),
+                            _StatCard('To Check-In', assigned, Colors.blue.shade300),
                             const SizedBox(width: 10),
-                            _buildStatCard('Pending', pending),
+                            _StatCard('To Check-In', assigned, Colors.blue.shade300),
                             const SizedBox(width: 10),
-                            _StatCard('Pending', pending, Colors.orange.shade300),
+                            _StatCard('Checked-In', checkedIn, Colors.cyan.shade300),
                             const SizedBox(width: 10),
-                            _StatCard('Approved', approved, Colors.green.shade300),
+                            _StatCard('Under Review', pendingOfficerReview + pendingAbsenceReview + pendingReportReview, Colors.purple.shade300),
                             const SizedBox(width: 10),
-                            _StatCard('Rejected', rejected, Colors.red.shade300),
+                            _StatCard('Completed', completeActivity + rejectActivity, Colors.green.shade300),
+                            const SizedBox(width: 10),
+                            _StatCard('Missed', checkInMissed, Colors.deepOrange.shade300),
                           ],
                         ),
                       ),
@@ -419,7 +454,7 @@ class _DashboardBodyState extends State<_DashboardBody> {
                 },
               ),
             ),
-
+            
             // Quick Actions
             Container(
               margin: const EdgeInsets.all(16),
@@ -438,7 +473,13 @@ class _DashboardBodyState extends State<_DashboardBody> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Quick Actions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Quick Actions',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -447,7 +488,7 @@ class _DashboardBodyState extends State<_DashboardBody> {
                           icon: Icons.location_on,
                           label: 'GPS Check-In',
                           color: Colors.lightGreen,
-                          onTap: () {},
+                          onTap: () => widget.onQuickNavigate('assigned'),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -456,7 +497,7 @@ class _DashboardBodyState extends State<_DashboardBody> {
                           icon: Icons.description,
                           label: 'Submit Report',
                           color: Colors.blue,
-                          onTap: () {},
+                          onTap: () => widget.onQuickNavigate('checked_in'),
                         ),
                       ),
                     ],
@@ -470,22 +511,67 @@ class _DashboardBodyState extends State<_DashboardBody> {
             // My Activities Section
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('My Activities', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                  TextButton(onPressed: () {}, child: const Text('View all')),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'My Activities',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => _goToActivitiesTab(context),
+                        child: const Text('View all'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      FilterChip(
+                        label: const Text('All', style: TextStyle(fontSize: 12)),
+                        selected: _timeFilter == 'all',
+                        onSelected: (_) => setState(() => _timeFilter = 'all'),
+                        selectedColor: Colors.lightGreen.shade100,
+                        checkmarkColor: Colors.lightGreen,
+                      ),
+                      FilterChip(
+                        label: const Text('Today', style: TextStyle(fontSize: 12)),
+                        selected: _timeFilter == 'today',
+                        onSelected: (_) => setState(() => _timeFilter = 'today'),
+                        selectedColor: Colors.lightGreen.shade100,
+                        checkmarkColor: Colors.lightGreen,
+                      ),
+                      FilterChip(
+                        label: const Text('Week', style: TextStyle(fontSize: 12)),
+                        selected: _timeFilter == 'week',
+                        onSelected: (_) => setState(() => _timeFilter = 'week'),
+                        selectedColor: Colors.lightGreen.shade100,
+                        checkmarkColor: Colors.lightGreen,
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
+            
+            const SizedBox(height: 12),
 
-            // Activity List
+            // Activity Cards
             StreamBuilder<List<ActivityData>>(
               stream: currentUser == null
                   ? null
                   : _activityController.preacherActivitiesStream(currentUser.uid),
               builder: (context, snapshot) {
-                if (currentUser == null) return const SizedBox.shrink();
+                if (currentUser == null) {
+                  return const SizedBox.shrink();
+                }
                 if (!snapshot.hasData) {
                   return const Padding(
                     padding: EdgeInsets.all(20),
@@ -493,10 +579,28 @@ class _DashboardBodyState extends State<_DashboardBody> {
                   );
                 }
 
-                final activities = snapshot.data!
-                    .where((a) => a.assignment?.preacherId == currentUser.uid)
-                    .take(5)
-                    .toList();
+                var activities = snapshot.data!.where((a) => 
+                  a.assignment?.preacherId == currentUser?.uid
+                ).toList();
+
+                // Apply time filter
+                if (_timeFilter != 'all') {
+                  final now = DateTime.now();
+                  activities = activities.where((activity) {
+                    final activityDate = _safeParseDate(activity.activityDate);
+                    if (activityDate == null) return false;
+
+                    if (_timeFilter == 'today') {
+                      return activityDate.year == now.year &&
+                             activityDate.month == now.month &&
+                             activityDate.day == now.day;
+                    } else if (_timeFilter == 'week') {
+                      final weekAgo = now.subtract(const Duration(days: 7));
+                      return activityDate.isAfter(weekAgo) && activityDate.isBefore(now.add(const Duration(days: 1)));
+                    }
+                    return true;
+                  }).toList();
+                }
 
                 if (activities.isEmpty) {
                   return _EmptyStateCard(
@@ -537,6 +641,7 @@ class _DashboardBodyState extends State<_DashboardBody> {
                           return 6;
                       }
                     }
+                    
                     return getPriority(a.status).compareTo(getPriority(b.status));
                   });
                 }
@@ -559,32 +664,65 @@ class _DashboardBodyState extends State<_DashboardBody> {
             ),
             const SizedBox(height: 6),
             // Notifications & Alerts Section (for current preacher)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Notifications & Alerts',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      // Placeholder: could navigate to a full notifications page
-                    },
-                    child: const Text('See all'),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
-            ),
-            Card(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              color: Colors.grey.shade50,
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: StreamBuilder<QuerySnapshot>(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.lightGreen.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.notifications_active,
+                          color: Colors.lightGreen.shade700,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Notifications & Alerts',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () {
+                          final currentUser = FirebaseAuth.instance.currentUser;
+                          if (currentUser != null) {
+                            final parent = context.findAncestorStateOfType<_PreacherDashboardState>();
+                            parent?._showNotificationsModal(context, currentUser.uid);
+                          }
+                        },
+                        label: const Text('See all'),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  StreamBuilder<QuerySnapshot>(
                 stream: FirebaseAuth.instance.currentUser == null
                     ? null
                     : FirebaseFirestore.instance
@@ -616,28 +754,64 @@ class _DashboardBodyState extends State<_DashboardBody> {
                       child: Center(child: CircularProgressIndicator()),
                     );
                   }
+                  // Filter out officer-only notification types on client side
                   final notifications = snap.data!.docs
                       .map((d) => ActivityNotification.fromDoc(d))
+                      .where((n) => n.type != 'explanation_pending_review' && n.type != 'explanation_submitted')
                       .toList()
                     ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
                   if (notifications.isEmpty) {
-                    return Row(
-                      children: [
-                        Icon(Icons.notifications_off, color: Colors.grey.shade500),
-                        const SizedBox(width: 8),
-                        Text('No notifications yet', style: TextStyle(color: Colors.grey.shade700)),
-                      ],
+                    return Container(
+                      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.notifications_off_outlined,
+                              size: 48,
+                              color: Colors.grey.shade400,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'All caught up!',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'No new notifications at the moment',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
                     );
                   }
                   return ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: notifications.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, __) => Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Colors.grey.shade200,
+                    ),
                     itemBuilder: (context, index) => _NotificationItem(notifications[index]),
                   );
                 },
-                ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 20),
@@ -708,49 +882,69 @@ class _NotificationItem extends StatelessWidget {
       onTap: () {
         // Placeholder for notification tap action
       },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: iconBgColor,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: iconColor.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: Icon(icon, color: iconColor),
+              child: Icon(icon, color: iconColor, size: 22),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     notification.message,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: notification.isRead ? FontWeight.w500 : FontWeight.w600,
+                      color: notification.isRead ?  Colors.black87 : Colors.black87,
+                      height: 1.4,
+                    ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(notification.type.toUpperCase(),
-                            style: TextStyle(
-                              color: Colors.grey.shade800,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            )),
+                      Icon(
+                        Icons.access_time,
+                        size: 13,
+                        color: Colors.grey.shade500,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 4),
                       Text(
                         timeAgo,
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
+                      if (!notification.isRead) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: Colors.lightGreen.shade600,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -782,9 +976,25 @@ class _StatCard extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('$value', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
+          Text(
+            count.toString(),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
@@ -796,18 +1006,66 @@ class _ActivityCard extends StatelessWidget {
 
   const _ActivityCard(this.activity);
 
+  String _formatStatus(String? status) {
+    if (status == null || status.isEmpty) return 'Unknown';
+    // Use specific display names for statuses
+    switch (status.toUpperCase()) {
+      case 'ASSIGNED':
+        return 'ASSIGNED';
+      case 'CHECKED_IN':
+      case 'PENDING_REPORT':
+      case 'PENDING':
+        return 'CHECKED IN';
+      case 'CHECK_IN_MISSED':
+        return 'ATTENDANCE MISSED';
+      case 'PENDING_OFFICER_REVIEW':
+        return 'LATE ATTENDANCE REVIEW';
+      case 'PENDING_ABSENCE_REVIEW':
+        return 'ABSENCE REVIEW';
+      case 'PENDING_REPORT_REVIEW':
+        return 'PENDING REVIEW';
+      case 'APPROVED':
+        return 'APPROVED / COMPLETED';
+      case 'REJECTED':
+        return 'REJECTED (REQUIRES FIX)';
+      case 'ABSENT':
+        return 'ABSENT';
+      case 'CANCELLED':
+        return 'CANCELLED';
+      default:
+        return status
+            .replaceAll('_', ' ')
+            .split(' ')
+            .map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase())
+            .join(' ');
+    }
+  }
+
+// ...existing code...
   Color _getStatusColor(String? status) {
-    switch (status?.toLowerCase()) {
-      case 'approved':
+    switch (status?.toUpperCase()) {
+      case 'APPROVED':
         return Colors.green;
-      case 'pending':
-        return Colors.amber;
-      case 'rejected':
-        return Colors.red;
-      case 'assigned':
-        return Colors.orange;
-      case 'checked_in':
+      case 'CHECKED_IN':
+      case 'PENDING_REPORT':
+      case 'PENDING':
         return Colors.cyan;
+      case 'PENDING_REPORT_REVIEW':
+        return Colors.orange.shade700;
+      case 'PENDING_OFFICER_REVIEW':
+        return Colors.purple;
+      case 'PENDING_ABSENCE_REVIEW':
+        return Colors.blue;
+      case 'REJECTED':
+        return Colors.red;
+      case 'ASSIGNED':
+        return Colors.amber.shade700;
+      case 'CHECK_IN_MISSED':
+        return Colors.deepOrange;
+      case 'ABSENT':
+        return Colors.redAccent;
+      case 'CANCELLED':
+        return Colors.red.shade600;
       default:
         return Colors.grey;
     }
@@ -1002,25 +1260,51 @@ class _ActivityCard extends StatelessWidget {
   }
 
   Widget _statusChip(String status) {
-    Color bgColor;
+     Color bgColor;
     Color textColor;
-    switch (status.toLowerCase()) {
-      case 'checked_in':
-      case 'assigned':
+    switch (status.toUpperCase()) {
+      case 'CHECKED_IN':
+      case 'PENDING_REPORT':
+      case 'PENDING':
+      case 'ASSIGNED':
         bgColor = Colors.yellow.shade100;
         textColor = Colors.orange.shade800;
         break;
-      case 'approved':
+      case 'APPROVED':
         bgColor = Colors.green.shade100;
         textColor = Colors.green.shade800;
         break;
-      case 'pending':
+      case 'PENDING_REPORT_REVIEW':
         bgColor = Colors.orange.shade100;
         textColor = Colors.orange.shade900;
         break;
-      case 'rejected':
+      case 'PENDING_OFFICER_REVIEW':
+        bgColor = Colors.purple.shade100;
+        textColor = Colors.purple.shade800;
+        break;
+      case 'PENDING_ABSENCE_REVIEW':
+        bgColor = Colors.blue.shade100;
+        textColor = Colors.blue.shade800;
+        break;
+      case 'REJECTED':
         bgColor = Colors.red.shade100;
         textColor = Colors.red.shade800;
+        break;
+      case 'CHECK_IN_MISSED':
+        bgColor = Colors.deepOrange.shade100;
+        textColor = Colors.deepOrange.shade800;
+        break;
+      case 'EXPLANATION_SUBMITTED':
+        bgColor = Colors.blue.shade100;
+        textColor = Colors.blue.shade800;
+        break;
+      case 'ABSENT':
+        bgColor = Colors.red.shade100;
+        textColor = Colors.red.shade900;
+        break;
+      case 'CANCELLED':
+        bgColor = Colors.grey.shade300;
+        textColor = Colors.grey.shade800;
         break;
       default:
         bgColor = Colors.grey.shade100;
@@ -1033,7 +1317,7 @@ class _ActivityCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        status.toUpperCase(),
+        _formatStatus(status),
         style: TextStyle(
           fontWeight: FontWeight.bold,
           color: textColor,
@@ -1249,7 +1533,7 @@ class _ActivityCard extends StatelessWidget {
           ],
         ),
       ),
-    ),
+      ),
     );
   }
 
@@ -1262,7 +1546,7 @@ class _ActivityCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        status.replaceAll('_', ' ').toUpperCase(),
+        _formatStatus(status),
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w700,
@@ -1272,6 +1556,7 @@ class _ActivityCard extends StatelessWidget {
     );
   }
 }
+
 
 class _QuickActionCard extends StatelessWidget {
   final IconData icon;
@@ -1301,46 +1586,66 @@ class _QuickActionCard extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 26),
             const SizedBox(height: 6),
-            Text(label, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600)),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildActivityCard(ActivityData activity) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        title: Text(activity.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text('${activity.activityDate} • ${activity.locationName}'),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: _getStatusColor(activity.status).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
+class _EmptyStateCard extends StatelessWidget {
+  final String title;
+  final String message;
+
+  const _EmptyStateCard({required this.title, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
-          child: Text(
-            activity.status.toUpperCase(),
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: _getStatusColor(activity.status),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.inbox, size: 48, color: Colors.grey.shade400),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
             ),
           ),
-        ),
+          const SizedBox(height: 6),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ],
       ),
     );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'approved': return Colors.green;
-      case 'pending': return Colors.orange;
-      case 'rejected': return Colors.red;
-      case 'assigned': return Colors.blue;
-      default: return Colors.grey;
-    }
   }
 }

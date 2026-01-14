@@ -36,10 +36,10 @@ class ActivityController extends ChangeNotifier {
         await _autoMarkCheckInMissedIfNeeded(activity);
       }
       print(
-        '✅ Auto-check completed. Checked ${snap.docs.length} assigned activities.',
+        'Auto-check completed. Checked ${snap.docs.length} assigned activities.',
       );
     } catch (e) {
-      print('❌ Auto-check failed: $e');
+      print('Auto-check failed: $e');
     }
   }
 

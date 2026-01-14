@@ -5,6 +5,7 @@ import 'assignActivity.dart';
 import 'editActivity.dart';
 import 'editMapScreen.dart';
 import 'reviewReport.dart';
+import 'viewReportOfficer.dart';
 import '../../../utils/image_utils.dart';
 
 class OfficerActivityList extends StatefulWidget {
@@ -670,6 +671,10 @@ class _OfficerActivityListState extends State<OfficerActivityList> {
       backgroundColor: Colors.transparent,
       builder: (_) {
         final statusLower = a.status.toLowerCase();
+        final canViewReport = statusLower == 'pending_report_review' || 
+                                          statusLower == 'approved' || 
+                                          statusLower == 'rejected' ||
+                                          statusLower == 'absent';
         return DraggableScrollableSheet(
           expand: false,
           initialChildSize: 0.9,
@@ -894,7 +899,59 @@ class _OfficerActivityListState extends State<OfficerActivityList> {
                             ),
                           ),
                         ],
-
+                            if (canViewReport) ...[
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  icon: Icon(
+                                    statusLower == 'absent' 
+                                        ? Icons.cancel 
+                                        : Icons.description,
+                                    size: 18,
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: statusLower == 'absent'
+                                        ? Colors.red.shade100
+                                        : statusLower == 'approved'
+                                            ? Colors.green.shade100
+                                            : statusLower == 'rejected'
+                                                ? Colors.orange.shade100
+                                                : Colors.blue.shade100,
+                                    foregroundColor: statusLower == 'absent'
+                                        ? Colors.red.shade700
+                                        : statusLower == 'approved'
+                                            ? Colors.green.shade700
+                                            : statusLower == 'rejected'
+                                                ? Colors.orange.shade700
+                                                : Colors.blue.shade700,
+                                    minimumSize: const Size(0, 42),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ViewReportOfficerScreen(activity: a),
+                                      ),
+                                    );
+                                  },
+                                  label: Text(
+                                    statusLower == 'absent' 
+                                        ? 'View Absence Details' 
+                                        : statusLower == 'approved'
+                                            ? 'View Approved Report'
+                                            : statusLower == 'rejected'
+                                                ? 'View Rejected Report'
+                                                : 'View Submission',
+                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                              ),
+                            ],
                         const SizedBox(height: 10),
 
                         ElevatedButton.icon(

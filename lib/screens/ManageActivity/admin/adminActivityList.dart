@@ -64,6 +64,7 @@ class _AdminActivityListState extends State<AdminActivityList> {
       case 'checked_in':
         return Colors.cyan;
       case 'pending_report':
+      case 'pending':
         return Colors.orange;
       case 'pending_officer_review':
         return Colors.purple;
@@ -91,6 +92,7 @@ class _AdminActivityListState extends State<AdminActivityList> {
       case 'checked_in':
         return Colors.cyan.shade100;
       case 'pending_report':
+      case 'pending':
         return Colors.orange.shade100;
       case 'pending_officer_review':
         return Colors.purple.shade50;
@@ -132,6 +134,7 @@ class _AdminActivityListState extends State<AdminActivityList> {
       case 'pending_absence_review':
         return 'Absence Review';
       case 'pending_report':
+      case 'pending':
         return 'Report Submission';
       case 'approved':
         return 'Approved / Completed';

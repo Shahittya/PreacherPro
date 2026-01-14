@@ -53,4 +53,6 @@ class ActivityNotification {
         .collection('notifications')
         .add(notification.toMap());
   }
+
+  
 }
