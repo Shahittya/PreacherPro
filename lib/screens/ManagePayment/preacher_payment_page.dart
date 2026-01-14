@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../providers/Profile&Payment/payment_controller.dart';
+import '../../models/payment_data.dart';
 
 class PreacherPaymentPage extends StatefulWidget {
   const PreacherPaymentPage({super.key});
@@ -64,9 +65,9 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
     }
   }
 
-  Widget _buildPaymentCard(Map<String, dynamic> item, bool showViewButton) {
+  Widget _buildPaymentCard(Payment item, bool showViewButton) {
     // Display payment status from payments collection
-    final displayStatus = item['status'] ?? 'Pending';
+    final displayStatus = item.status;
     
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -98,12 +99,12 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          item['eventName'] ?? item['preacher'] ?? '',
+                          item.eventName.isNotEmpty ? item.eventName : item.preacherName,
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Date: ${item['date']}',
+                          'Date: ${item.eventDate}',
                           style: const TextStyle(color: Colors.grey),
                         ),
                       ],
@@ -132,7 +133,7 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      item['address'] ?? '',
+                      item.address ?? '',
                       style: const TextStyle(color: Colors.grey),
                     ),
                   ),
@@ -144,7 +145,7 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
                   const Icon(Icons.monetization_on, size: 16, color: Colors.grey),
                   const SizedBox(width: 6),
                   Text(
-                    '${item['currency'] ?? 'RM'} ${item['amount'] ?? '0.00'}',
+                    '${item.currency ?? 'RM'} ${item.amount}',
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ],
@@ -171,41 +172,41 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
     );
   }
 
-  List<Map<String, dynamic>> _getPendingPayments() {
+  List<Payment> _getPendingPayments() {
     if (_currentPreacherId == null) return [];
     
     // Filter only for current preacher's pending payments
     return store.pending.value.where((item) {
-      final preacherId = item['preacherId']?.toString() ?? '';
-      final status = (item['status'] ?? '').toLowerCase();
+      final preacherId = item.preacherId;
+      final status = item.status.toLowerCase();
       return preacherId == _currentPreacherId && status == 'pending';
     }).toList();
   }
 
-  List<Map<String, dynamic>> _getApprovedPayments() {
+  List<Payment> _getApprovedPayments() {
     if (_currentPreacherId == null) return [];
     
     // Filter only for current preacher's approved payments
     return store.pending.value.where((item) {
-      final preacherId = item['preacherId']?.toString() ?? '';
-      final status = (item['status'] ?? '').toLowerCase();
+      final preacherId = item.preacherId;
+      final status = item.status.toLowerCase();
       return preacherId == _currentPreacherId && status == 'approved';
     }).toList();
   }
 
-  List<Map<String, dynamic>> _getRejectedPayments() {
+  List<Payment> _getRejectedPayments() {
     if (_currentPreacherId == null) return [];
     
     // Filter only for current preacher's rejected payments
     return store.pending.value.where((item) {
-      final preacherId = item['preacherId']?.toString() ?? '';
-      final status = (item['status'] ?? '').toLowerCase();
+      final preacherId = item.preacherId;
+      final status = item.status.toLowerCase();
       return preacherId == _currentPreacherId && 
              (status == 'rejected_by_officer' || status == 'rejected_by_admin');
     }).toList();
   }
 
-  Widget _buildTabContent(List<Map<String, dynamic>> payments, String emptyMessage) {
+  Widget _buildTabContent(List<Payment> payments, String emptyMessage) {
     if (payments.isEmpty) {
       return Center(
         child: Column(
@@ -246,7 +247,7 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
           ],
         ),
       ),
-      body: ValueListenableBuilder<List<Map<String, dynamic>>>(
+      body: ValueListenableBuilder<List<Payment>>(
         valueListenable: store.pending,
         builder: (context, _, __) {
           return TabBarView(
@@ -262,9 +263,9 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
     );
   }
 
-  void _showDetailModal(BuildContext context, Map<String, dynamic> item) {
+  void _showDetailModal(BuildContext context, Payment item) {
     // Display payment status from payments collection
-    final displayStatus = item['status'] ?? 'Pending';
+    final displayStatus = item.status;
     
     showModalBottomSheet(
       context: context,
@@ -323,12 +324,12 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    item['eventName'] ?? item['preacher'] ?? '',
+                                    item.eventName.isNotEmpty ? item.eventName : item.preacherName,
                                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    'Date: ${item['date']}',
+                                    'Date: ${item.eventDate}',
                                     style: const TextStyle(color: Colors.grey),
                                   ),
                                 ],
@@ -357,7 +358,7 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                item['address'] ?? '',
+                                item.address ?? '',
                                 style: const TextStyle(color: Colors.grey),
                               ),
                             ),
@@ -369,7 +370,7 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
                             const Icon(Icons.monetization_on, size: 16, color: Colors.grey),
                             const SizedBox(width: 6),
                             Text(
-                              '${item['currency'] ?? 'RM'} ${item['amount'] ?? '0.00'}',
+                              '${item.currency ?? 'RM'} ${item.amount}',
                               style: const TextStyle(fontWeight: FontWeight.w600),
                             ),
                           ],
@@ -381,7 +382,7 @@ class _PreacherPaymentPageState extends State<PreacherPaymentPage> with SingleTi
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          item['description'] ?? 'No description available',
+                          item.description.isNotEmpty ? item.description : 'No description available',
                           style: const TextStyle(color: Colors.black87),
                         ),
                       ],
