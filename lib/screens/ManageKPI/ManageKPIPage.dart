@@ -93,7 +93,7 @@ class _ManageKPIPageState extends State<ManageKPIPage> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Manage Preacher KPI'),
-        backgroundColor: const Color(0xFF7CB342),
+        backgroundColor: Colors.amber.shade500,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
