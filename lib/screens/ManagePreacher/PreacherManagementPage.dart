@@ -4,6 +4,7 @@ import '../../models/PreacherData.dart';
 import '../../providers/PreacherController.dart';
 import 'EditPreacherForm.dart';
 import 'ViewPreacherProfile.dart';
+import 'PreacherSuccessDialog.dart';
 
 class PreacherManagementPage extends StatefulWidget {
   const PreacherManagementPage({super.key});
@@ -316,12 +317,10 @@ class _PreacherManagementPageState extends State<PreacherManagementPage> {
                   isActive ? 'Inactive' : 'Active'
                 );
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Account ${isActive ? 'deactivated' : 'activated'} successfully'),
-                      backgroundColor: Colors.green,
-                      behavior: SnackBarBehavior.floating,
-                    ),
+                  PreacherSuccessDialog.show(
+                    context,
+                    title: 'Success',
+                    message: 'Account ${isActive ? 'deactivated' : 'activated'} successfully',
                   );
                 }
               } catch (e) {
@@ -360,12 +359,10 @@ class _PreacherManagementPageState extends State<PreacherManagementPage> {
               try {
                 await controller.deletePreacher(preacher.id);
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Preacher deleted successfully'),
-                      backgroundColor: Colors.green,
-                      behavior: SnackBarBehavior.floating,
-                    ),
+                  PreacherSuccessDialog.show(
+                    context,
+                    title: 'Success',
+                    message: 'Preacher deleted successfully',
                   );
                 }
               } catch (e) {

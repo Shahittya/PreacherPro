@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/PreacherData.dart';
 import '../../providers/PreacherController.dart';
+import 'PreacherSuccessDialog.dart';
 
 class EditPreacherForm extends StatefulWidget {
   final PreacherData? preacher; // If null, we are in "Add" mode
@@ -88,15 +89,12 @@ class _EditPreacherFormState extends State<EditPreacherForm> {
 
       if (mounted) {
         Navigator.pop(context); // Go back to list
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(widget.preacher == null 
-              ? 'Preacher added successfully!' 
-              : 'Preacher updated successfully!'
-            ),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
+        PreacherSuccessDialog.show(
+          context,
+          title: 'Success',
+          message: widget.preacher == null 
+            ? 'Preacher added successfully!' 
+            : 'Preacher updated successfully!',
         );
       }
     } catch (e) {
