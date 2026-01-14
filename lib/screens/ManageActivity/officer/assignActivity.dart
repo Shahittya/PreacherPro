@@ -5,7 +5,7 @@ import '../../../models/ActivityData.dart';
 import '../../../models/ActivityAssignment.dart';
 import '../../../models/Notification.dart' as NotificationModel;
 import 'package:provider/provider.dart';
-import '../../../providers/ActvitiyController.dart';
+import '/providers/ActivityController.dart';
 import 'MapScreen.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart'; 
 
