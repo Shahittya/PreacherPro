@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../providers/Profile&Payment/payment_controller.dart';
+import '../../models/payment_data.dart';
 
 class MuipAdminPaymentPage extends StatefulWidget {
   const MuipAdminPaymentPage({super.key});
@@ -52,9 +53,9 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
     }
   }
 
-  Widget _buildPaymentCard(Map<String, dynamic> item, bool showViewButton) {
+  Widget _buildPaymentCard(Payment item, bool showViewButton) {
     // For admin page, display adminStatus instead of officer status
-    final displayStatus = item['adminStatus'] ?? 'Pending';
+    final displayStatus = item.adminStatus;
     
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -86,12 +87,12 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          item['eventName'] ?? item['preacher'] ?? '',
+                          item.eventName.isNotEmpty ? item.eventName : item.preacherName,
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Date: ${item['date']}',
+                          'Date: ${item.eventDate}',
                           style: const TextStyle(color: Colors.grey),
                         ),
                       ],
@@ -120,7 +121,7 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      item['address'] ?? '',
+                      item.address ?? '',
                       style: const TextStyle(color: Colors.grey),
                     ),
                   ),
@@ -132,7 +133,7 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
                   const Icon(Icons.monetization_on, size: 16, color: Colors.grey),
                   const SizedBox(width: 6),
                   Text(
-                    '${item['currency'] ?? 'RM'} ${item['amount'] ?? '0.00'}',
+                    '${item.currency ?? 'RM'} ${item.amount}',
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ],
@@ -159,29 +160,29 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
     );
   }
 
-  List<Map<String, dynamic>> _getPendingPayments() {
+  List<Payment> _getPendingPayments() {
     // Admin pending tab shows payments with status='pending'
     return store.pending.value.where((item) => 
-      (item['status'] ?? '').toLowerCase() == 'pending'
+      item.status.toLowerCase() == 'pending'
     ).toList();
   }
 
-  List<Map<String, dynamic>> _getApprovedPayments() {
+  List<Payment> _getApprovedPayments() {
     // Admin approved tab shows payments with status='approved'
     return store.pending.value.where((item) => 
-      (item['status'] ?? '').toLowerCase() == 'approved'
+      item.status.toLowerCase() == 'approved'
     ).toList();
   }
 
-  List<Map<String, dynamic>> _getRejectedPayments() {
+  List<Payment> _getRejectedPayments() {
     // Admin rejected tab shows payments with status='rejected_by_officer' or 'rejected_by_admin'
     return store.pending.value.where((item) {
-      final status = (item['status'] ?? '').toLowerCase();
+      final status = item.status.toLowerCase();
       return status == 'rejected_by_officer' || status == 'rejected_by_admin';
     }).toList();
   }
 
-  Widget _buildTabContent(List<Map<String, dynamic>> payments, String emptyMessage) {
+  Widget _buildTabContent(List<Payment> payments, String emptyMessage) {
     if (payments.isEmpty) {
       return Center(
         child: Column(
@@ -222,7 +223,7 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
           ],
         ),
       ),
-      body: ValueListenableBuilder<List<Map<String, dynamic>>>(
+      body: ValueListenableBuilder<List<Payment>>(
         valueListenable: store.pending,
         builder: (context, _, __) {
           return TabBarView(
@@ -238,13 +239,13 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
     );
   }
 
-  void _showDetailModal(BuildContext context, Map<String, dynamic> item) {
+  void _showDetailModal(BuildContext context, Payment item) {
     // Check if this is a pending payment (status='pending')
-    final status = (item['status'] ?? '').toLowerCase();
+    final status = item.status.toLowerCase();
     final isPending = status == 'pending';
     
     // For admin modal, display the payment status
-    final displayStatus = item['status'] ?? 'Pending';
+    final displayStatus = item.status;
     
     showModalBottomSheet(
       context: context,
@@ -303,12 +304,12 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    item['eventName'] ?? item['preacher'] ?? '',
+                                    item.eventName.isNotEmpty ? item.eventName : item.preacherName,
                                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    'Date: ${item['date']}',
+                                    'Date: ${item.eventDate}',
                                     style: const TextStyle(color: Colors.grey),
                                   ),
                                 ],
@@ -337,7 +338,7 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                item['address'] ?? '',
+                                item.address ?? '',
                                 style: const TextStyle(color: Colors.grey),
                               ),
                             ),
@@ -349,7 +350,7 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
                             const Icon(Icons.monetization_on, size: 16, color: Colors.grey),
                             const SizedBox(width: 6),
                             Text(
-                              '${item['currency'] ?? 'RM'} ${item['amount'] ?? '0.00'}',
+                              '${item.currency ?? 'RM'} ${item.amount}',
                               style: const TextStyle(fontWeight: FontWeight.w600),
                             ),
                           ],
@@ -361,7 +362,7 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          item['description'] ?? 'No description available',
+                          item.description.isNotEmpty ? item.description : 'No description available',
                           style: const TextStyle(color: Colors.black87),
                         ),
                       ],
@@ -426,10 +427,10 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
     );
   }
 
-  void _handleApprove(Map<String, dynamic> item) {
-    final paymentId = item['id']?.toString();
+  void _handleApprove(Payment item) {
+    final paymentId = item.paymentId;
     
-    if (paymentId == null || paymentId.isEmpty) {
+    if (paymentId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Invalid payment ID'),
@@ -449,10 +450,10 @@ class _MuipAdminPaymentPageState extends State<MuipAdminPaymentPage> with Single
     );
   }
 
-  void _handleReject(Map<String, dynamic> item) {
-    final paymentId = item['id']?.toString();
+  void _handleReject(Payment item) {
+    final paymentId = item.paymentId;
     
-    if (paymentId == null || paymentId.isEmpty) {
+    if (paymentId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Invalid payment ID'),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../providers/Profile&Payment/payment_controller.dart';
+import '../../models/payment_data.dart';
 
 class MuipOfficerPaymentPage extends StatelessWidget {
   const MuipOfficerPaymentPage({super.key});
@@ -16,12 +17,12 @@ class MuipOfficerPaymentPage extends StatelessWidget {
       ),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
-        child: ValueListenableBuilder<List<Map<String, dynamic>>>(
+        child: ValueListenableBuilder<List<Payment>>(
           valueListenable: store.pending,
           builder: (context, allPayments, _) {
             // Filter payments to show only those created by this officer
             final officerPayments = allPayments.where((item) {
-              final officerId = item['officerId']?.toString() ?? '';
+              final officerId = item.officerId ?? '';
               return officerId == currentUserId;
             }).toList();
             
@@ -60,12 +61,12 @@ class MuipOfficerPaymentPage extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      item['preacher'] ?? '',
+                                      item.preacherName,
                                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
-                                      'ID: ${item['preacherId'] ?? item['id'] ?? ''} · ${item['date'] ?? ''}',
+                                      'ID: ${item.preacherId} · ${item.eventDate}',
                                       style: const TextStyle(color: Colors.grey)
                                     ),
                                   ],
@@ -74,13 +75,13 @@ class MuipOfficerPaymentPage extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: _getStatusBackgroundColor(item['status'] ?? 'pending'),
+                                  color: _getStatusBackgroundColor(item.status),
                                   borderRadius: BorderRadius.circular(12)
                                 ),
                                 child: Text(
-                                  _formatStatus(item['status'] ?? 'pending'),
+                                  _formatStatus(item.status),
                                   style: TextStyle(
-                                    color: _getStatusColor(item['status'] ?? 'pending'),
+                                    color: _getStatusColor(item.status),
                                     fontWeight: FontWeight.w600,
                                   )
                                 ),
@@ -94,7 +95,7 @@ class MuipOfficerPaymentPage extends StatelessWidget {
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
-                                  item['address'] ?? '',
+                                  item.address ?? '',
                                   style: const TextStyle(color: Colors.grey)
                                 )
                               ),
@@ -106,7 +107,7 @@ class MuipOfficerPaymentPage extends StatelessWidget {
                               const Icon(Icons.monetization_on, size: 16, color: Colors.grey),
                               const SizedBox(width: 6),
                               Text(
-                                '${item['currency'] ?? 'RM'} ${item['amount'] ?? '0'}',
+                                '${item.currency ?? 'RM'} ${item.amount}',
                                 style: const TextStyle(fontWeight: FontWeight.w600)
                               ),
                             ],
@@ -137,7 +138,7 @@ class MuipOfficerPaymentPage extends StatelessWidget {
     );
   }
 
-  void _showDetailModal(BuildContext context, Map<String, dynamic> item) {
+  void _showDetailModal(BuildContext context, Payment item) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -192,30 +193,30 @@ class MuipOfficerPaymentPage extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    item['preacher'] ?? '',
+                                    item.preacherName,
                                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    'ID: ${item['preacherId'] ?? item['id'] ?? ''} · ${item['date'] ?? ''}',
+                                    'ID: ${item.preacherId} · ${item.eventDate}',
                                     style: const TextStyle(color: Colors.grey)
                                   ),
                                 ],
                               ),
                             ),
-                            if (item['status'] != null)
+                            if (item.status.isNotEmpty)
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: (item['status'] ?? '').toLowerCase() == 'rejected'
+                                  color: item.status.toLowerCase() == 'rejected'
                                       ? Colors.red.shade50
                                       : Colors.green.shade50,
                                   borderRadius: BorderRadius.circular(12)
                                 ),
                                 child: Text(
-                                  item['status'],
+                                  item.status,
                                   style: TextStyle(
-                                    color: (item['status'] ?? '').toLowerCase() == 'rejected'
+                                    color: item.status.toLowerCase() == 'rejected'
                                         ? Colors.red.shade700
                                         : Colors.green.shade700
                                   )
@@ -230,7 +231,7 @@ class MuipOfficerPaymentPage extends StatelessWidget {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                item['address'] ?? '',
+                                item.address ?? '',
                                 style: const TextStyle(color: Colors.grey)
                               )
                             ),
@@ -242,7 +243,7 @@ class MuipOfficerPaymentPage extends StatelessWidget {
                             const Icon(Icons.monetization_on, size: 16, color: Colors.grey),
                             const SizedBox(width: 6),
                             Text(
-                              '${item['currency'] ?? 'RM'} ${item['amount'] ?? '0'}',
+                              '${item.currency ?? 'RM'} ${item.amount}',
                               style: const TextStyle(fontWeight: FontWeight.w600)
                             ),
                           ],
@@ -254,7 +255,7 @@ class MuipOfficerPaymentPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          item['description'] ?? 'No description available',
+                          item.description.isNotEmpty ? item.description : 'No description available',
                           style: const TextStyle(color: Colors.black87)
                         ),
                       ],

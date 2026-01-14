@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../models/Profile/profile_data.dart';
+import '../../models/profile_data.dart';
 
 class ProfileController extends ChangeNotifier {
   // Firebase instances

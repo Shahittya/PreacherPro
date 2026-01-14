@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/ActivityData.dart';
+import '../../models/payment_data.dart';
 
 class PaymentController {
   PaymentController._internal() {
@@ -22,10 +23,10 @@ class PaymentController {
   factory PaymentController() => _instance;
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final ValueNotifier<List<Map<String, dynamic>>> pending = ValueNotifier([]);
-  final ValueNotifier<List<Map<String, dynamic>>> history = ValueNotifier([]);
-  final ValueNotifier<List<Map<String, dynamic>>> approved = ValueNotifier([]);
-  final ValueNotifier<List<Map<String, dynamic>>> rejected = ValueNotifier([]);
+  final ValueNotifier<List<Payment>> pending = ValueNotifier([]);
+  final ValueNotifier<List<Payment>> history = ValueNotifier([]);
+  final ValueNotifier<List<Payment>> approved = ValueNotifier([]);
+  final ValueNotifier<List<Payment>> rejected = ValueNotifier([]);
 
   /// Role read ONLY from authenticated session token claims (single source of truth).
   final ValueNotifier<String?> role = ValueNotifier(null);
@@ -49,34 +50,22 @@ class PaymentController {
         debugPrint('📡 PAYMENTS SNAPSHOT RECEIVED');
         debugPrint('   Document count: ${snapshot.docs.length}');
         
-        final payments = <Map<String, dynamic>>[];
+        final payments = <Payment>[];
         
         for (var doc in snapshot.docs) {
           debugPrint('   📄 Payment doc: ${doc.id}');
           final data = doc.data();
-          payments.add({
+          
+          // Create map with document ID and all data
+          final paymentMap = {
             'id': doc.id,
             'paymentId': doc.id,
             'docId': doc.id,
-            'activityId': data['activityId'] ?? '',
-            'preacher': data['preacherName'] ?? 'Unknown',
-            'preacherId': data['preacherId'] ?? '',
-            'eventName': data['eventName'] ?? '',
-            'date': data['eventDate'] ?? '',
-            'address': data['address'] ?? '',
-            'description': data['description'] ?? '',
-            'topic': data['topic'] ?? '',
-            'status': data['status'] ?? 'pending',
-            'adminStatus': data['status'] ?? 'pending', // Map status to adminStatus for compatibility
-            'viewed': false,
-            'amount': data['amount'] ?? 0.00,
-            'currency': data['currency'] ?? 'RM',
-            'requestedDate': data['requestedDate'],
-            'approvedDate': data['approvedDate'],
-            'rejectedDate': data['rejectedDate'],
-            'officerId': data['officerId'] ?? '',
-            'adminId': data['adminId'] ?? '',
-          });
+            ...data,
+          };
+          
+          // Use Payment.fromMap to create Payment object
+          payments.add(Payment.fromMap(paymentMap));
         }
         
         debugPrint('✅ Loaded ${payments.length} payments into pending.value');
@@ -205,34 +194,30 @@ class PaymentController {
   }
 
   void markViewed(int index) {
-    final list = List<Map<String, dynamic>>.from(pending.value);
+    final list = List<Payment>.from(pending.value);
     if (index >= 0 && index < list.length) {
-      list[index] = Map<String, dynamic>.from(list[index]);
-      list[index]['viewed'] = true;
+      list[index] = list[index].copyWith(viewed: true);
       pending.value = list;
     }
   }
 
   void approvePending(int index, String amountStr) {
-    final list = List<Map<String, dynamic>>.from(pending.value);
+    final list = List<Payment>.from(pending.value);
     if (index < 0 || index >= list.length) return;
 
-    final item = Map<String, dynamic>.from(list[index]);
-    item['status'] = 'Approved';
-    // Initialize adminStatus if not present
-    if (!item.containsKey('adminStatus')) {
-      item['adminStatus'] = 'Pending';
-    }
-
-    final parsed = num.tryParse(amountStr.replaceAll(',', '')) ?? item['amount'];
-    item['amount'] = parsed;
+    final parsed = num.tryParse(amountStr.replaceAll(',', '')) ?? list[index].amount;
+    final item = list[index].copyWith(
+      status: 'Approved',
+      adminStatus: 'Pending',
+      amount: parsed.toDouble(),
+    );
 
     // Add to both history and approved lists
-    final newHistory = List<Map<String, dynamic>>.from(history.value);
+    final newHistory = List<Payment>.from(history.value);
     newHistory.insert(0, item);
     history.value = newHistory;
 
-    final newApproved = List<Map<String, dynamic>>.from(approved.value);
+    final newApproved = List<Payment>.from(approved.value);
     newApproved.insert(0, item);
     approved.value = newApproved;
 
@@ -241,22 +226,21 @@ class PaymentController {
   }
 
   void rejectPending(int index, {String reason = ''}) {
-    final list = List<Map<String, dynamic>>.from(pending.value);
+    final list = List<Payment>.from(pending.value);
     if (index < 0 || index >= list.length) return;
 
-    final item = Map<String, dynamic>.from(list[index]);
-    item['status'] = 'Rejected';
-    // Initialize adminStatus if not present
-    if (!item.containsKey('adminStatus')) {
-      item['adminStatus'] = 'Pending';
-    }
+    final item = list[index].copyWith(
+      status: 'Rejected',
+      adminStatus: 'Pending',
+      rejectionReason: reason.isNotEmpty ? reason : null,
+    );
 
     // Add to both history and rejected lists
-    final newHistory = List<Map<String, dynamic>>.from(history.value);
+    final newHistory = List<Payment>.from(history.value);
     newHistory.insert(0, item);
     history.value = newHistory;
 
-    final newRejected = List<Map<String, dynamic>>.from(rejected.value);
+    final newRejected = List<Payment>.from(rejected.value);
     newRejected.insert(0, item);
     rejected.value = newRejected;
 
@@ -264,9 +248,9 @@ class PaymentController {
     pending.value = list;
   }
 
-  void addToHistory(Map<String, dynamic> item) {
-    final newHistory = List<Map<String, dynamic>>.from(history.value);
-    newHistory.insert(0, Map<String, dynamic>.from(item));
+  void addToHistory(Payment item) {
+    final newHistory = List<Payment>.from(history.value);
+    newHistory.insert(0, item);
     history.value = newHistory;
   }
 
@@ -286,10 +270,10 @@ class PaymentController {
   
   /// Helper to remove item by ID from all lists
   void _removeItemById(String itemId) {
-    pending.value = pending.value.where((item) => item['id'] != itemId).toList();
-    approved.value = approved.value.where((item) => item['id'] != itemId).toList();
-    rejected.value = rejected.value.where((item) => item['id'] != itemId).toList();
-    history.value = history.value.where((item) => item['id'] != itemId).toList();
+    pending.value = pending.value.where((item) => item.paymentId != itemId).toList();
+    approved.value = approved.value.where((item) => item.paymentId != itemId).toList();
+    rejected.value = rejected.value.where((item) => item.paymentId != itemId).toList();
+    history.value = history.value.where((item) => item.paymentId != itemId).toList();
   }
 
   /// Admin-specific reject method - updates payment status in Firestore
